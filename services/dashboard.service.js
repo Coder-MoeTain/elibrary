@@ -1,6 +1,7 @@
 ﻿const { Op, QueryTypes } = require('sequelize');
 const { sequelize, Book, EBook, User, RentList } = require('../models');
 const { USER_STATUS } = require('../constants');
+const { importedClause } = require('./ebook.service');
 
 /** YYYY-MM-DD in local calendar (avoid UTC shift from toISOString on DATEONLY filters). */
 function formatDate(date) {
@@ -36,11 +37,12 @@ async function getDashboardSummary() {
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [totalBooks, totalEbooks, totalUsers, activeRentals, dailyRentCount, weeklyRentCount, monthlyRentCount, monthlyNewUsers] = await Promise.all([
+  const [totalBooks, totalEbooks, totalUsers, activeRentals, importedPapers, dailyRentCount, weeklyRentCount, monthlyRentCount, monthlyNewUsers] = await Promise.all([
     Book.count(),
     EBook.count(),
     User.count(),
     RentList.count({ where: { returnDate: null } }),
+    EBook.count({ where: importedClause() }),
     RentList.count({ where: { rentDate: { [Op.gte]: formatDate(dayStart) } } }),
     RentList.count({ where: { rentDate: { [Op.gte]: formatDate(weekStart) } } }),
     RentList.count({ where: { rentDate: { [Op.gte]: formatDate(monthStart) } } }),
@@ -104,6 +106,7 @@ async function getDashboardSummary() {
       totalEbooks,
       totalUsers,
       activeRentals,
+      importedPapers,
     },
     charts: {
       rentals: {
@@ -134,11 +137,12 @@ async function getDashboardStats() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [totalBooks, totalEbooks, totalUsers, monthlyRentals] = await Promise.all([
+  const [totalBooks, totalEbooks, totalUsers, monthlyRentals, importedPapers] = await Promise.all([
     Book.count(),
     EBook.count(),
     User.count({ where: { status: USER_STATUS.APPROVED } }),
     RentList.count({ where: { rentDate: { [Op.gte]: formatDate(monthStart) } } }),
+    EBook.count({ where: importedClause() }),
   ]);
 
   return {
@@ -146,6 +150,7 @@ async function getDashboardStats() {
     totalEbooks,
     totalUsers,
     monthlyRentals,
+    importedPapers,
   };
 }
 

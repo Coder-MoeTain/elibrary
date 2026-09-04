@@ -931,4 +931,6 @@ module.exports = {
   update,
   remove,
   trackRead,
+  importedClause,
+  wantsImported,
 };

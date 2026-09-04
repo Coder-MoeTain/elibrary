@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BookMarked, BookOpen, ClipboardList, Users } from "lucide-react";
+import { BookMarked, BookOpen, ClipboardList, FileDown, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../components/ui/Card";
@@ -8,7 +8,7 @@ import { getApiErrorMessage, getDashboardStats } from "../../services/api";
 import DashboardAnalytics from "./DashboardAnalytics";
 
 type StatDef = {
-  statKey: "totalBooks" | "totalEbooks" | "totalUsers" | "monthlyRentals";
+  statKey: "totalBooks" | "totalEbooks" | "importedPapers" | "totalUsers" | "monthlyRentals";
   label: string;
   icon: typeof BookOpen;
   accent: string;
@@ -32,6 +32,14 @@ const statDefs: StatDef[] = [
     accent: "text-violet-600",
     bg: "bg-violet-50 dark:bg-violet-950/40",
     to: "/admin/ebooks"
+  },
+  {
+    statKey: "importedPapers",
+    label: "Imported papers",
+    icon: FileDown,
+    accent: "text-indigo-600",
+    bg: "bg-indigo-50 dark:bg-indigo-950/40",
+    to: "/admin/imports"
   },
   {
     statKey: "totalUsers",
@@ -90,6 +98,7 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     totalBooks: 0,
     totalEbooks: 0,
+    importedPapers: 0,
     totalUsers: 0,
     monthlyRentals: 0
   });
@@ -123,7 +132,7 @@ const Dashboard = () => {
         ) : null}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statDefs.map((s, index) => (
           <StatTile key={s.statKey} {...s} value={stats[s.statKey]} index={index} />
         ))}

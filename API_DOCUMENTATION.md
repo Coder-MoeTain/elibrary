@@ -353,7 +353,8 @@ Admin analytics endpoint (real-time, computed from existing tables).
       "totalBooks": 120,
       "totalEbooks": 80,
       "totalUsers": 250,
-      "activeRentals": 34
+      "activeRentals": 34,
+      "importedPapers": 18
     },
     "charts": {
       "rentals": {

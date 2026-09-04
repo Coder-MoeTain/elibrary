@@ -197,6 +197,7 @@ export type DashboardStats = {
   totalEbooks: number;
   totalUsers: number;
   monthlyRentals: number;
+  importedPapers: number;
 };
 
 function normalizeDashboardStats(raw: unknown): DashboardStats {
@@ -205,12 +206,19 @@ function normalizeDashboardStats(raw: unknown): DashboardStats {
     totalBooks: Math.max(0, Math.trunc(Number(r.totalBooks ?? 0))),
     totalEbooks: Math.max(0, Math.trunc(Number(r.totalEbooks ?? 0))),
     totalUsers: Math.max(0, Math.trunc(Number(r.totalUsers ?? 0))),
-    monthlyRentals: Math.max(0, Math.trunc(Number(r.monthlyRentals ?? 0)))
+    monthlyRentals: Math.max(0, Math.trunc(Number(r.monthlyRentals ?? 0))),
+    importedPapers: Math.max(0, Math.trunc(Number(r.importedPapers ?? 0)))
   };
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const empty: DashboardStats = { totalBooks: 0, totalEbooks: 0, totalUsers: 0, monthlyRentals: 0 };
+  const empty: DashboardStats = {
+    totalBooks: 0,
+    totalEbooks: 0,
+    totalUsers: 0,
+    monthlyRentals: 0,
+    importedPapers: 0
+  };
 
   const fromSummary = async (): Promise<DashboardStats | null> => {
     const { data } = await api.get<ApiEnvelope<unknown>>("/dashboard/summary");
@@ -225,7 +233,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       totalBooks: Math.max(0, Math.trunc(Number(stats.totalBooks ?? 0))),
       totalEbooks: Math.max(0, Math.trunc(Number(stats.totalEbooks ?? 0))),
       totalUsers: Math.max(0, Math.trunc(Number(stats.totalUsers ?? 0))),
-      monthlyRentals: Math.max(0, Math.trunc(Number(rentals?.monthlyRentCount ?? 0)))
+      monthlyRentals: Math.max(0, Math.trunc(Number(rentals?.monthlyRentCount ?? 0))),
+      importedPapers: Math.max(0, Math.trunc(Number(stats.importedPapers ?? 0)))
     };
   };
 

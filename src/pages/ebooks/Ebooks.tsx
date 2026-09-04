@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
-import { Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import DatePicker from "../../components/ui/DatePicker";
@@ -24,6 +24,7 @@ import {
   deleteEbook,
   EbookItem,
   EbookPayload,
+  EbookSummaryStatus,
   getApiErrorMessage,
   getAuthors,
   getCategories,
@@ -36,6 +37,7 @@ type EbookRow = Record<string, unknown> & {
   ebook_name: string;
   author_name: string;
   category_name: string;
+  status: EbookSummaryStatus;
   release_date: string;
   description: string;
   cover_image: string;
@@ -45,6 +47,28 @@ type EbookRow = Record<string, unknown> & {
 };
 
 type Toast = { kind: "success" | "error"; message: string } | null;
+type StatusFilterValue = "all" | EbookSummaryStatus;
+
+const STATUS_FILTER_OPTIONS: { value: Exclude<StatusFilterValue, "all">; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "processing", label: "Processing" },
+  { value: "completed", label: "Completed" },
+  { value: "failed", label: "Failed" }
+];
+
+const STATUS_LABEL: Record<EbookSummaryStatus, string> = {
+  pending: "Pending",
+  processing: "Processing",
+  completed: "Completed",
+  failed: "Failed"
+};
+
+const STATUS_BADGE_CLASS: Record<EbookSummaryStatus, string> = {
+  pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  processing: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+  completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+  failed: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
+};
 
 const actionClass =
   "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700";
@@ -71,6 +95,9 @@ const Ebooks = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const statusHeaderRef = useRef<HTMLDivElement>(null);
   const [openForm, setOpenForm] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -90,6 +117,7 @@ const Ebooks = () => {
       ebook_name: b.ebook_name,
       author_name: b.author_name || `Author #${b.author_id}`,
       category_name: b.category_name || `Category #${b.category_id}`,
+      status: b.summary_status,
       release_date: b.release_date ?? "-",
       description: b.description ?? "",
       cover_image: b.cover_image ?? "",
@@ -120,20 +148,38 @@ const Ebooks = () => {
     void fetchAll();
   }, []);
 
+  useEffect(() => {
+    if (!statusMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!statusHeaderRef.current?.contains(e.target as Node)) {
+        setStatusMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [statusMenuOpen]);
+
   const filtered = useMemo(() => {
+    let next = rows;
+    if (statusFilter !== "all") {
+      next = next.filter((r) => r.status === statusFilter);
+    }
     const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter(
+    if (!s) return next;
+    return next.filter(
       (r) =>
         String(r.ebook_name).toLowerCase().includes(s) ||
         String(r.author_name).toLowerCase().includes(s) ||
-        String(r.category_name).toLowerCase().includes(s)
+        String(r.category_name).toLowerCase().includes(s) ||
+        STATUS_LABEL[r.status].toLowerCase().includes(s)
     );
-  }, [rows, q]);
+  }, [rows, q, statusFilter]);
+
+  const filterResetKey = `${q}|${statusFilter}`;
 
   useEffect(() => {
     setPage(1);
-  }, [q]);
+  }, [q, statusFilter]);
 
   const sortedFiltered = useMemo(
     () => sortRows(filtered, sortKey, sortOrder),
@@ -147,7 +193,7 @@ const Ebooks = () => {
     return sortedFiltered.slice(start, start + limit);
   }, [sortedFiltered, page, limit]);
 
-  const infiniteScroll = useAdminTableInfiniteScroll(sortedFiltered, q, {
+  const infiniteScroll = useAdminTableInfiniteScroll(sortedFiltered, filterResetKey, {
     step: limit,
   });
 
@@ -163,6 +209,65 @@ const Ebooks = () => {
       setSortOrder("asc");
     }
   };
+
+  const statusHeaderMenu = (
+    <div ref={statusHeaderRef} className="relative inline-block text-left">
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-lg px-1 py-0.5 font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-primary dark:text-slate-300 dark:hover:bg-slate-700/80 dark:hover:text-white"
+        onClick={() => setStatusMenuOpen((o) => !o)}
+        aria-expanded={statusMenuOpen}
+        aria-haspopup="listbox"
+        aria-label="Filter by status"
+      >
+        Status
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 opacity-70 transition-transform ${statusMenuOpen ? "rotate-180" : ""}`}
+          aria-hidden
+        />
+      </button>
+      {statusMenuOpen && (
+        <div
+          className="absolute left-0 top-full z-[130] mt-1 min-w-[10rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800"
+          role="listbox"
+        >
+          {STATUS_FILTER_OPTIONS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              role="option"
+              aria-selected={statusFilter === value}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm transition hover:bg-slate-50 dark:hover:bg-slate-700/80 ${
+                statusFilter === value
+                  ? "bg-slate-50 font-semibold text-primary dark:bg-slate-700/50 dark:text-white"
+                  : "text-slate-700 dark:text-slate-200"
+              }`}
+              onClick={() => {
+                setStatusFilter(value);
+                setStatusMenuOpen(false);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          {statusFilter !== "all" && (
+            <div className="mt-1 border-t border-slate-100 pt-1 dark:border-slate-600">
+              <button
+                type="button"
+                className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/80 dark:hover:text-slate-200"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setStatusMenuOpen(false);
+                }}
+              >
+                View all e-books
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   const tableRows =
     ADMIN_TABLE_DISPLAY_MODE === "infinite"
@@ -311,6 +416,19 @@ const Ebooks = () => {
     },
     { key: "author_name" as const, title: "Author", sortable: true },
     { key: "category_name" as const, title: "Category", sortable: true },
+    {
+      key: "status" as const,
+      title: "Status",
+      sortable: true,
+      headerCell: statusHeaderMenu,
+      render: (row: EbookRow) => (
+        <span
+          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE_CLASS[row.status]}`}
+        >
+          {STATUS_LABEL[row.status]}
+        </span>
+      )
+    },
     {
       key: "description" as const,
       title: "Description",

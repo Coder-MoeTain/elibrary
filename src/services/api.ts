@@ -639,6 +639,8 @@ export type EbookPayload = {
   pdf_url?: string;
 };
 
+export type EbookSummaryStatus = "pending" | "processing" | "completed" | "failed";
+
 export type EbookItem = {
   ebook_id: number;
   ebook_name: string;
@@ -652,7 +654,14 @@ export type EbookItem = {
   author_name: string;
   category_name: string;
   read_count: number;
+  summary_status: EbookSummaryStatus;
 };
+
+function normalizeEbookSummaryStatus(raw: unknown): EbookSummaryStatus {
+  const s = String(raw ?? "pending").trim().toLowerCase();
+  if (s === "completed" || s === "processing" || s === "failed") return s;
+  return "pending";
+}
 
 export type FavoriteItem = {
   favorite_id: number;
@@ -682,7 +691,8 @@ function normalizeEbook(raw: unknown): EbookItem | null {
     pdf_available: Boolean(rawPdf),
     author_name: String(authorObj.authorName ?? authorObj.author_name ?? ""),
     category_name: String(categoryObj.categoryName ?? categoryObj.category_name ?? ""),
-    read_count: Math.max(0, Math.trunc(Number(r.readCount ?? r.read_count ?? 0)))
+    read_count: Math.max(0, Math.trunc(Number(r.readCount ?? r.read_count ?? 0))),
+    summary_status: normalizeEbookSummaryStatus(r.summaryStatus ?? r.summary_status)
   };
 }
 

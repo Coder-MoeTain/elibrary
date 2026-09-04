@@ -17,6 +17,16 @@ function getPdfParseLib() {
 const AppError = require('../utils/AppError');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
+const COLLECTOR_MARKER = 'Collector-Paper-ID:';
+
+function importedClause() {
+  return { description: { [Op.like]: `%${COLLECTOR_MARKER}%` } };
+}
+
+function wantsImported(value) {
+  return ['1', 'true', 'yes'].includes(String(value ?? '').toLowerCase());
+}
+
 function pickAuthorId(body) {
   return body.authorId ?? body.author_id ?? null;
 }
@@ -500,9 +510,12 @@ async function getNewUploads(limit = 5) {
   return toRowsWithReadCount(rows);
 }
 
-async function findAll() {
+async function findAll(options = {}) {
+  const imported = wantsImported(options.imported);
+  const where = imported ? importedClause() : {};
   const rows = await EBook.findAll({
-    order: [['eBooksId', 'ASC']],
+    where,
+    order: [['eBooksId', imported ? 'DESC' : 'ASC']],
     include: ['category', 'author'],
   });
   const ids = rows.map((r) => r.eBooksId);
@@ -522,6 +535,9 @@ async function findPage(options = {}) {
   const category = String(options.category || '').trim();
 
   const where = {};
+  if (wantsImported(options.imported)) {
+    Object.assign(where, importedClause());
+  }
   if (q) {
     where.eBookName = { [Op.like]: `%${q}%` };
   }

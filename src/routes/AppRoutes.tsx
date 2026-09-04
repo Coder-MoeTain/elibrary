@@ -13,6 +13,7 @@ import Dashboard from "../pages/dashboard/Dashboard";
 import Departments from "../pages/departments/Departments";
 import AdminManagement from "../pages/admin/AdminManagement";
 import Ebooks from "../pages/ebooks/Ebooks";
+import ImportedPapers from "../pages/ebooks/ImportedPapers";
 import MemberBooks from "../pages/member/Books";
 import MemberBookDetail from "../pages/member/BookDetail";
 import MemberEbookDetail from "../pages/member/EbookDetail";
@@ -63,6 +64,7 @@ const AppRoutes = () => {
         <Route path="books/:id" element={<BookDetail />} />
         <Route path="ebooks" element={<Ebooks />} />
         <Route path="ebooks/:id" element={<MemberEbookDetail />} />
+        <Route path="imports" element={<ImportedPapers />} />
         <Route path="categories" element={<Categories />} />
         <Route path="authors" element={<Authors />} />
         <Route path="users" element={<Users />} />

@@ -655,6 +655,7 @@ export type EbookItem = {
   category_name: string;
   read_count: number;
   summary_status: EbookSummaryStatus;
+  created_at: string;
 };
 
 function normalizeEbookSummaryStatus(raw: unknown): EbookSummaryStatus {
@@ -691,13 +692,15 @@ function normalizeEbook(raw: unknown): EbookItem | null {
     pdf_available: Boolean(rawPdf),
     author_name: String(authorObj.authorName ?? authorObj.author_name ?? ""),
     category_name: String(categoryObj.categoryName ?? categoryObj.category_name ?? ""),
+    created_at: String(r.created_at ?? r.createdAt ?? ""),
     read_count: Math.max(0, Math.trunc(Number(r.readCount ?? r.read_count ?? 0))),
     summary_status: normalizeEbookSummaryStatus(r.summaryStatus ?? r.summary_status)
   };
 }
 
-export async function getEbooks(): Promise<EbookItem[]> {
-  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks");
+export async function getEbooks(options?: { imported?: boolean }): Promise<EbookItem[]> {
+  const params = options?.imported ? { imported: "true" } : undefined;
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks", { params });
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
 }
@@ -743,12 +746,14 @@ export async function getEbooksPage(options?: {
   limit?: number;
   q?: string;
   category?: string;
+  imported?: boolean;
 }): Promise<{ items: EbookItem[]; page: number; limit: number; total: number; totalPages: number }> {
   const params: Record<string, string | number> = { paged: "true" };
   if (options?.page) params.page = options.page;
   if (options?.limit) params.limit = options.limit;
   if (options?.q) params.q = options.q;
   if (options?.category) params.category = options.category;
+  if (options?.imported) params.imported = "true";
 
   const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks", { params });
   const rows = Array.isArray(data.data) ? data.data : [];

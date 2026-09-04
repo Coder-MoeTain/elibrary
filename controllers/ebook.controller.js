@@ -47,10 +47,16 @@ const list = asyncHandler(async (req, res) => {
     const limit = Number(req.query.limit);
     const q = req.query.q;
     const category = req.query.category;
-    const result = await ebookService.findPage({ page, limit, q, category });
+    const result = await ebookService.findPage({
+      page,
+      limit,
+      q,
+      category,
+      imported: req.query.imported,
+    });
     return success(res, { data: result.data, meta: result.pagination });
   }
-  const rows = await ebookService.findAll();
+  const rows = await ebookService.findAll({ imported: req.query.imported });
   return success(res, { data: rows });
 });
 

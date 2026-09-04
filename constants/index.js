@@ -1,0 +1,50 @@
+module.exports = {
+  ROLES: {
+    ADMIN: 'admin',
+    MEMBER: 'member',
+    USER: 'member',
+  },
+  /** Panel hierarchy for `admin` table rows (JWT `adminRole`). */
+  ADMIN_TIER: {
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    ADMIN: 'ADMIN',
+  },
+  USER_STATUS: {
+    PENDING: 'PENDING',
+    APPROVED: 'APPROVED',
+    REJECTED: 'REJECTED',
+  },
+  HTTP_STATUS: {
+    OK: 200,
+    CREATED: 201,
+    NO_CONTENT: 204,
+    BAD_REQUEST: 400,
+    UNAUTHORIZED: 401,
+    FORBIDDEN: 403,
+    NOT_FOUND: 404,
+    CONFLICT: 409,
+    UNPROCESSABLE: 422,
+    TOO_MANY_REQUESTS: 429,
+    INTERNAL: 500,
+    BAD_GATEWAY: 502,
+  },
+  MESSAGES: {
+    AUTH_REQUIRED: 'Authentication required',
+    FORBIDDEN: 'Insufficient permissions',
+    NOT_FOUND: 'Resource not found',
+    INTERNAL: 'Internal server error',
+    BOOK_RENTED: 'This book is already rented (no return date on active rental)',
+    INVALID_CREDENTIALS: 'Invalid credentials',
+    USER_NOT_APPROVED: 'Your account is not approved yet',
+    USER_REJECTED: 'Your account has been rejected',
+    REGISTRATION_SUBMITTED:
+      '📩 Please wait for admin approval. You will receive a confirmation email once approved.',
+    USER_ALREADY_EXISTS: 'Username or email is already registered',
+    INVALID_DEPARTMENT: 'Invalid department selected',
+    DEPARTMENT_NAME_EXISTS: 'A department with this name already exists.',
+    SUPER_ADMIN_ONLY: 'Only Super Admin can perform this action.',
+    CANNOT_DELETE_SELF: 'You cannot delete your own admin account.',
+    CANNOT_DELETE_LAST_SUPER_ADMIN: 'Cannot remove the last Super Admin account.',
+    CANNOT_DEMOTE_LAST_SUPER_ADMIN: 'At least one Super Admin is required.',
+  },
+};

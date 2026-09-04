@@ -1,0 +1,546 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-library-mgmt-api",
+    "name": "Library Management System API",
+    "description": "Import into Postman. Set collection variables `adminName` and `adminPassword` locally (do not commit real credentials). Run **Admin login** first to get admin token.\n\nPrereqs: `npm run migrate`, optional `npm run seed`, `npm start`. Base URL from `.env` PORT (default 3000).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "adminName", "value": "" },
+    { "key": "adminPassword", "value": "" },
+    { "key": "demoUserName", "value": "" },
+    { "key": "demoUserPassword", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "userToken", "value": "" },
+    { "key": "registeredUserName", "value": "john_doe" },
+    { "key": "registeredUserEmail", "value": "john@example.com" },
+    { "key": "registeredUserPassword", "value": "SecurePass1!" },
+    { "key": "categoryId", "value": "1" },
+    { "key": "authorId", "value": "1" },
+    { "key": "bookId", "value": "1" },
+    { "key": "ebookId", "value": "1" },
+    { "key": "departmentId", "value": "1" },
+    { "key": "userId", "value": "1" },
+    { "key": "adminId", "value": "1" },
+    { "key": "rentId", "value": "1" },
+    { "key": "dashboardTokenNote", "value": "Use admin token for /api/dashboard/*" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST Admin login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  if (j.data && j.data.token) {",
+                  "    pm.collectionVariables.set('adminToken', j.data.token);",
+                  "    pm.collectionVariables.set('token', j.data.token);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminName\": \"{{adminName}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/admin/login"
+          }
+        },
+        {
+          "name": "POST User login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  if (j.data && j.data.token) {",
+                  "    pm.collectionVariables.set('userToken', j.data.token);",
+                  "    pm.collectionVariables.set('token', j.data.token);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userName\": \"{{demoUserName}}\",\n  \"password\": \"{{demoUserPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/user/login"
+          }
+        },
+        {
+          "name": "POST Register user (public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_name\": \"{{registeredUserName}}\",\n  \"email\": \"{{registeredUserEmail}}\",\n  \"password\": \"{{registeredUserPassword}}\",\n  \"date_of_birth\": \"2000-01-01\",\n  \"department_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          }
+        },
+        {
+          "name": "POST User login (pending/rejected check)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userName\": \"{{registeredUserName}}\",\n  \"password\": \"{{registeredUserPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/user/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "GET List categories",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/categories" }
+        },
+        {
+          "name": "GET Category by id",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/categories/{{categoryId}}" }
+        },
+        {
+          "name": "POST Create category (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryName\": \"Fiction\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/categories"
+          }
+        },
+        {
+          "name": "PUT Update category (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryName\": \"Science Fiction\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          }
+        },
+        {
+          "name": "DELETE Category (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/categories/{{categoryId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Authors",
+      "item": [
+        {
+          "name": "GET List authors",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/authors" }
+        },
+        {
+          "name": "GET Author by id",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/authors/{{authorId}}" }
+        },
+        {
+          "name": "POST Create author (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorName\": \"Jane Austen\",\n  \"country\": \"United Kingdom\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/authors"
+          }
+        },
+        {
+          "name": "PUT Update author (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorName\": \"J. Austen\",\n  \"country\": \"United Kingdom\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/authors/{{authorId}}"
+          }
+        },
+        {
+          "name": "DELETE Author (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/authors/{{authorId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Departments",
+      "item": [
+        {
+          "name": "GET List departments",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/departments" }
+        },
+        {
+          "name": "GET Department by id",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/departments/{{departmentId}}" }
+        },
+        {
+          "name": "POST Create department (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentName\": \"Computer Science\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/departments"
+          }
+        },
+        {
+          "name": "PUT Update department (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentName\": \"Information Systems\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}"
+          }
+        },
+        {
+          "name": "DELETE Department (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/departments/{{departmentId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "GET List users (admin)",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/users" }
+        },
+        {
+          "name": "GET User by id (admin)",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/users/{{userId}}" }
+        },
+        {
+          "name": "POST Create user (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userName\": \"{{demoUserName}}\",\n  \"password\": \"{{demoUserPassword}}\",\n  \"dateOfBirth\": \"1995-05-15\",\n  \"email\": \"jdoe@example.com\",\n  \"departmentId\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "PUT Update user (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userName\": \"jdoe\",\n  \"email\": \"jdoe.updated@example.com\",\n  \"departmentId\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users/{{userId}}"
+          }
+        },
+        {
+          "name": "DELETE User (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/users/{{userId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Admins",
+      "item": [
+        {
+          "name": "GET List admins (admin)",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/admins" }
+        },
+        {
+          "name": "GET Admin by id (admin)",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/admins/{{adminId}}" }
+        },
+        {
+          "name": "POST Create admin (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminName\": \"librarian1\",\n  \"password\": \"SecurePass1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/admins"
+          }
+        },
+        {
+          "name": "PUT Update admin (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminName\": \"librarian1\",\n  \"password\": \"NewSecurePass1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/admins/{{adminId}}"
+          }
+        },
+        {
+          "name": "DELETE Admin (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/admins/{{adminId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Admin User Approval",
+      "item": [
+        {
+          "name": "PUT Approve user (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/users/{{userId}}/approve"
+          }
+        },
+        {
+          "name": "PUT Reject user (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/users/{{userId}}/reject"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Books",
+      "item": [
+        {
+          "name": "GET List books",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/books" }
+        },
+        {
+          "name": "GET Book by id",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/books/{{bookId}}" }
+        },
+        {
+          "name": "GET Book availability",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/books/{{bookId}}/availability" }
+        },
+        {
+          "name": "POST Create book (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookName\": \"Pride and Prejudice\",\n  \"releaseDate\": \"1813-01-28\",\n  \"description\": \"Classic novel\",\n  \"place\": \"Shelf (2) Row (3)\",\n  \"categoryId\": 1,\n  \"authorId\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/books"
+          }
+        },
+        {
+          "name": "PUT Update book (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookName\": \"Pride and Prejudice (Annotated)\",\n  \"place\": \"Shelf (4) Row (1)\",\n  \"categoryId\": 1,\n  \"authorId\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/books/{{bookId}}"
+          }
+        },
+        {
+          "name": "DELETE Book (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/books/{{bookId}}" }
+        }
+      ]
+    },
+    {
+      "name": "eBooks",
+      "item": [
+        {
+          "name": "GET List ebooks",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/ebooks" }
+        },
+        {
+          "name": "GET eBook by id",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/ebooks/{{ebookId}}" }
+        },
+        {
+          "name": "POST Track eBook read (user)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "Requires USER token. If currently using admin token, run User login first so {{token}} becomes user token.",
+            "url": "{{baseUrl}}/api/ebooks/{{ebookId}}/read"
+          }
+        },
+        {
+          "name": "POST Create ebook (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eBookName\": \"Sample eBook\",\n  \"releaseDate\": \"2020-01-01\",\n  \"description\": \"Digital edition\",\n  \"coverImage\": \"https://example.com/cover.jpg\",\n  \"pdfFile\": \"https://example.com/file.pdf\",\n  \"categoryId\": 1,\n  \"authorId\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/ebooks"
+          }
+        },
+        {
+          "name": "PUT Update ebook (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eBookName\": \"Sample eBook v2\",\n  \"categoryId\": 1,\n  \"authorId\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/ebooks/{{ebookId}}"
+          }
+        },
+        {
+          "name": "DELETE eBook (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/ebooks/{{ebookId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "GET Dashboard summary (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Requires ADMIN token.",
+            "url": "{{baseUrl}}/api/dashboard/summary"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rent",
+      "item": [
+        {
+          "name": "POST Rent book",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": 1,\n  \"dueDate\": \"2026-12-31\",\n  \"rentDate\": \"2026-04-06\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Admin: add `\"usersId\": 1` to rent for a user. User role: `usersId` comes from JWT.",
+            "url": "{{baseUrl}}/api/rent"
+          }
+        },
+        {
+          "name": "PATCH Return book",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/rent/{{rentId}}/return"
+          }
+        },
+        {
+          "name": "GET List rentals",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/rent" }
+        },
+        {
+          "name": "GET Rental by id",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/rent/{{rentId}}" }
+        },
+        {
+          "name": "PUT Update rental (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rentDate\": \"2026-04-01\",\n  \"dueDate\": \"2026-04-30\",\n  \"returnDate\": null,\n  \"bookId\": 1,\n  \"usersId\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/rent/{{rentId}}"
+          }
+        },
+        {
+          "name": "DELETE Rental (admin)",
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/rent/{{rentId}}" }
+        }
+      ]
+    }
+  ]
+}

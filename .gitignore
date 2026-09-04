@@ -1,0 +1,42 @@
+# Secrets & local config
+.env
+.env.local
+.env.*.local
+config/secrets.env
+
+# Dependencies & build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Uploads & large media (sync separately — not via git)
+public/uploads/
+
+# Logs & runtime
+logs/
+*.log
+npm-debug.log*
+.pm2/
+pids/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Certificates (generate per host)
+certs/*.pem
+!certs/.gitkeep
+
+# Backups & archives
+*.sql
+*.tar.gz
+backup*.sql
+latest_backup*.sql
+
+# Test / coverage
+coverage/
+.nyc_output/

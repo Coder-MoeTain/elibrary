@@ -31,11 +31,10 @@ Thumbs.db
 certs/*.pem
 !certs/.gitkeep
 
-# Backups & archives
+# Database dumps created from Settings → Backup
 *.sql
-*.tar.gz
-backup*.sql
-latest_backup*.sql
+backups/*
+!backups/.gitkeep
 
 # Test / coverage
 coverage/

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import PageHeader from "../../components/ui/PageHeader";
 import { Table } from "../../components/ui/Table";
 import { BookItem, getApiErrorMessage, getBookAvailability, getBooks } from "../../services/api";
 
@@ -209,17 +210,14 @@ const Books = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Books</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Browse books in the library catalog.</p>
-          </div>
-
+      <PageHeader
+        title="Books"
+        description="Browse books in the library catalog."
+        actions={
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
             aria-label="Filter by category"
           >
             {categories.map((cat) => (
@@ -228,8 +226,8 @@ const Books = () => {
               </option>
             ))}
           </select>
-        </div>
-      </motion.div>
+        }
+      />
 
       {toast && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200">

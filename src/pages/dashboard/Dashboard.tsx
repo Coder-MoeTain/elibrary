@@ -3,6 +3,7 @@ import { BookMarked, BookOpen, ClipboardList, FileDown, Users } from "lucide-rea
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../components/ui/Card";
+import PageHeader from "../../components/ui/PageHeader";
 import { useAnimatedNumber } from "../../hooks/useAnimatedNumber";
 import { getApiErrorMessage, getDashboardStats } from "../../services/api";
 import DashboardAnalytics from "./DashboardAnalytics";
@@ -123,14 +124,15 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h2>
-        {loadError ? (
-          <p className="mt-2 text-sm text-rose-600 dark:text-rose-400" role="alert">
-            {loadError}
-          </p>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Catalog totals, imported papers, and activity for the current library timezone."
+      />
+      {loadError ? (
+        <p className="text-sm text-rose-600 dark:text-rose-400" role="alert">
+          {loadError}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statDefs.map((s, index) => (

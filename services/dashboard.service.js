@@ -2,14 +2,15 @@
 const { sequelize, Book, EBook, User, RentList } = require('../models');
 const { USER_STATUS } = require('../constants');
 const { importedClause } = require('./ebook.service');
-
-/** YYYY-MM-DD in local calendar (avoid UTC shift from toISOString on DATEONLY filters). */
-function formatDate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+const { getTimezone } = require('./settings.service');
+const {
+  calendarDate,
+  monthStartDate,
+  addCalendarDays,
+  rollingTwelveMonths,
+  startOfMonthWall,
+  monthKey,
+} = require('../utils/timezone');
 
 /** Dashboard analytics use `ebook_reads`; if migrations were skipped, MySQL throws and would 500 the whole summary. */
 async function selectOrEmptyEbookReads(sql, options = {}) {
@@ -27,15 +28,11 @@ async function selectOrEmptyEbookReads(sql, options = {}) {
 }
 
 async function getDashboardSummary() {
-  const now = new Date();
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-
-  const weekStart = new Date(now);
-  weekStart.setDate(weekStart.getDate() - 6);
-  weekStart.setHours(0, 0, 0, 0);
-
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const tz = await getTimezone();
+  const today = calendarDate(tz);
+  const weekStart = addCalendarDays(today, -6);
+  const monthStart = monthStartDate(tz);
+  const monthStartWall = startOfMonthWall(tz);
 
   const [totalBooks, totalEbooks, totalUsers, activeRentals, importedPapers, dailyRentCount, weeklyRentCount, monthlyRentCount, monthlyNewUsers] = await Promise.all([
     Book.count(),
@@ -43,10 +40,10 @@ async function getDashboardSummary() {
     User.count(),
     RentList.count({ where: { returnDate: null } }),
     EBook.count({ where: importedClause() }),
-    RentList.count({ where: { rentDate: { [Op.gte]: formatDate(dayStart) } } }),
-    RentList.count({ where: { rentDate: { [Op.gte]: formatDate(weekStart) } } }),
-    RentList.count({ where: { rentDate: { [Op.gte]: formatDate(monthStart) } } }),
-    User.count({ where: { created_at: { [Op.gte]: monthStart } } }),
+    RentList.count({ where: { rentDate: { [Op.gte]: today } } }),
+    RentList.count({ where: { rentDate: { [Op.gte]: weekStart } } }),
+    RentList.count({ where: { rentDate: { [Op.gte]: monthStart } } }),
+    User.count({ where: { created_at: { [Op.gte]: monthStartWall } } }),
   ]);
 
   const [
@@ -134,14 +131,14 @@ async function getDashboardSummary() {
 
 /** Flat stats for admin dashboard cards (approved users = active members). */
 async function getDashboardStats() {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const tz = await getTimezone();
+  const monthStart = monthStartDate(tz);
 
   const [totalBooks, totalEbooks, totalUsers, monthlyRentals, importedPapers] = await Promise.all([
     Book.count(),
     EBook.count(),
     User.count({ where: { status: USER_STATUS.APPROVED } }),
-    RentList.count({ where: { rentDate: { [Op.gte]: formatDate(monthStart) } } }),
+    RentList.count({ where: { rentDate: { [Op.gte]: monthStart } } }),
     EBook.count({ where: importedClause() }),
   ]);
 
@@ -154,28 +151,11 @@ async function getDashboardStats() {
   };
 }
 
-function monthKeyFromDate(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-/** Last 12 calendar months as { key, label } for merging SQL aggregates. */
-function rollingTwelveMonths(now = new Date()) {
-  const out = [];
-  for (let i = 11; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    out.push({
-      key: monthKeyFromDate(d),
-      label: d.toLocaleString('en-US', { month: 'short' }),
-    });
-  }
-  return out;
-}
-
 /** GET /dashboard/rentals/monthly — [{ month, total }] */
 async function getMonthlyRentalsSeries() {
-  const now = new Date();
-  const startDate = formatDate(new Date(now.getFullYear(), now.getMonth() - 11, 1));
-  const months = rollingTwelveMonths(now);
+  const tz = await getTimezone();
+  const months = rollingTwelveMonths(tz);
+  const startDate = `${months[0].key}-01`;
 
   const rows = await sequelize.query(
     `
@@ -252,10 +232,10 @@ async function getOverdueRentals() {
       FROM rent_list r
       INNER JOIN users u ON u.users_id = r.Users_users_id AND u.is_deleted = 0
       INNER JOIN books b ON b.book_id = r.Books_book_id
-      WHERE r.return_date IS NULL AND r.due_date < CURDATE()
+      WHERE r.return_date IS NULL AND r.due_date < :today
       ORDER BY r.due_date ASC
     `,
-    { type: QueryTypes.SELECT }
+    { replacements: { today: calendarDate(await getTimezone()) }, type: QueryTypes.SELECT }
   );
   return rows.map((r) => ({
     user_name: String(r.userName ?? ''),
@@ -284,22 +264,24 @@ async function getPopularEbooks() {
 
 /** GET /dashboard/users/growth — new registrations per month (last 12 months) */
 async function getUserGrowthMonthly() {
-  const now = new Date();
-  const startDate = formatDate(new Date(now.getFullYear(), now.getMonth() - 11, 1));
-  const months = rollingTwelveMonths(now);
+  const tz = await getTimezone();
+  const months = rollingTwelveMonths(tz);
+  const startWall = `${months[0].key}-01 00:00:00`;
 
   const rows = await sequelize.query(
     `
-      SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym, COUNT(*) AS total
+      SELECT created_at AS createdAt
       FROM users
-      WHERE created_at >= :startDate AND is_deleted = 0
-      GROUP BY DATE_FORMAT(created_at, '%Y-%m')
-      ORDER BY ym ASC
+      WHERE created_at >= :startWall AND is_deleted = 0
     `,
-    { replacements: { startDate }, type: QueryTypes.SELECT }
+    { replacements: { startWall }, type: QueryTypes.SELECT }
   );
 
-  const map = Object.fromEntries(rows.map((r) => [r.ym, Number(r.total) || 0]));
+  const map = {};
+  for (const r of rows) {
+    const key = monthKey(tz, r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt));
+    map[key] = (map[key] || 0) + 1;
+  }
   return months.map((m) => ({ month: m.label, total: map[m.key] ?? 0 }));
 }
 

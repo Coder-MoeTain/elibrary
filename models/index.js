@@ -1,6 +1,7 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const env = (process.env.NODE_ENV || 'development').trim();
 const dbConfig = require('../config/database.js')[env];
+const { getMysqlOffset } = require('../utils/tzState');
 
 const sequelize = new Sequelize(
   dbConfig.database,
@@ -16,6 +17,12 @@ const sequelize = new Sequelize(
       timestamps: true,
       createdAt: 'created_at',
       updatedAt: 'updated_at',
+    },
+    pool: {
+      afterCreate(connection, done) {
+        const offset = getMysqlOffset();
+        connection.query(`SET time_zone = '${offset}'`, (err) => done(err, connection));
+      },
     },
   }
 );
@@ -33,6 +40,7 @@ const db = {
   Favorite: require('./favorite.model')(sequelize, DataTypes),
   RentList: require('./rentList.model')(sequelize, DataTypes),
   EBookRead: require('./ebookRead.model')(sequelize, DataTypes),
+  AppSetting: require('./appSetting.model')(sequelize, DataTypes),
 };
 
 Object.keys(db).forEach((key) => {

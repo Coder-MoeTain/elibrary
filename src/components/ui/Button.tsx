@@ -13,7 +13,7 @@ const styles = {
 
 const Button = ({ children, variant = "primary", className = "", ...props }: ButtonProps) => (
   <button
-    className={`rounded-xl px-4 py-2 text-sm font-semibold transition disabled:pointer-events-none disabled:opacity-55 ${styles[variant]} ${className}`}
+    className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-55 dark:focus-visible:ring-offset-slate-900 ${styles[variant]} ${className}`}
     {...props}
   >
     {children}

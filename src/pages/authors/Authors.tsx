@@ -6,6 +6,7 @@ import Input from "../../components/ui/Input";
 import Modal from "../../components/ui/Modal";
 import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
+import PageHeader from "../../components/ui/PageHeader";
 import {
   AuthorOption,
   AuthorPayload,
@@ -181,16 +182,15 @@ const Authors = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Author Management</h2>
-          {/* <p className="text-sm text-slate-600 dark:text-slate-400">Author directory — API ready.</p> */}
-        </motion.div>
-        <Button type="button" className="inline-flex items-center gap-2 self-start" onClick={startCreate}>
-          <Plus className="h-4 w-4" />
-          Add author
-        </Button>
-      </div>
+      <PageHeader
+        title="Author Management"
+        actions={
+          <Button type="button" className="inline-flex items-center gap-2" onClick={startCreate}>
+            <Plus className="h-4 w-4" />
+            Add author
+          </Button>
+        }
+      />
 
       {toast && (
         <div

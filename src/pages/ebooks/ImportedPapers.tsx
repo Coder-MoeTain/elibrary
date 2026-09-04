@@ -1,9 +1,10 @@
-import { motion } from "framer-motion";
 import { Eye, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Input from "../../components/ui/Input";
 import { Table } from "../../components/ui/Table";
+import PageHeader from "../../components/ui/PageHeader";
+import { useTimezone } from "../../context/TimezoneContext";
 import { EbookItem, getApiErrorMessage, getEbooks } from "../../services/api";
 
 type ImportRow = Record<string, unknown> & {
@@ -21,15 +22,9 @@ function parseDoi(description: string): string {
   return match ? match[1].replace(/[.,;]+$/, "") : "—";
 }
 
-function formatWhen(raw: string): string {
-  if (!raw) return "—";
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw.slice(0, 19).replace("T", " ");
-  return d.toLocaleString();
-}
-
 const ImportedPapers = () => {
   const navigate = useNavigate();
+  const { formatDateTime, formatTime } = useTimezone();
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -49,7 +44,7 @@ const ImportedPapers = () => {
           category_name: item.category_name || "—",
           doi: parseDoi(item.description),
           year: item.release_date ? item.release_date.slice(0, 4) : "—",
-          imported_at: formatWhen(item.created_at)
+          imported_at: formatDateTime(item.created_at)
         }))
       );
       setUpdatedAt(new Date());
@@ -58,7 +53,7 @@ const ImportedPapers = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [formatDateTime]);
 
   useEffect(() => {
     void load();
@@ -107,27 +102,25 @@ const ImportedPapers = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Imported papers</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Research PDFs copied from pdf_downloader. This list refreshes automatically.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {updatedAt && (
-            <span className="text-xs text-slate-400">Updated {updatedAt.toLocaleTimeString()}</span>
-          )}
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-            onClick={() => void load()}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="Imported papers"
+        description="Research PDFs copied from pdf_downloader. This list refreshes automatically."
+        actions={
+          <div className="flex items-center gap-2">
+            {updatedAt && (
+              <span className="text-xs text-slate-400">Updated {formatTime(updatedAt)}</span>
+            )}
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              onClick={() => void load()}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
+        }
+      />
 
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

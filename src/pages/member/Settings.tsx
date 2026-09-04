@@ -1,10 +1,13 @@
 import axios from "axios";
 import { motion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import Button from "../../components/ui/Button";
 import DatePicker from "../../components/ui/DatePicker";
 import Input from "../../components/ui/Input";
+import PageHeader from "../../components/ui/PageHeader";
+import ToastBanner from "../../components/ui/ToastBanner";
+import { useTimezone } from "../../context/TimezoneContext";
+import { useTheme } from "../../hooks/useTheme";
 import {
   DepartmentOption,
   UpdateMemberProfilePayload,
@@ -24,6 +27,8 @@ const selectClassName =
   "w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-white";
 
 const Settings = () => {
+  const { theme, setTheme } = useTheme();
+  const { timezone, offset, formatClock } = useTimezone();
   const [toast, setToast] = useState<Toast>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -150,28 +155,9 @@ const Settings = () => {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Settings</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Manage your member account and password.</p>
-      </motion.div>
+      <PageHeader title="Settings" description="Manage your member account, password, and display preferences." />
 
-      {toast && (
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
-            toast.kind === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
-              : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
-          }`}
-        >
-          {toast.kind === "success" ? (
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
-          ) : null}
-          <span>{toast.message}</span>
-        </motion.div>
-      )}
+      {toast && <ToastBanner kind={toast.kind} message={toast.message} />}
 
       {loadError && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200">
@@ -179,7 +165,7 @@ const Settings = () => {
         </div>
       )}
 
-      <motion.section initial={false} animate={{ opacity: 1, y: 0 }} className={cardClass}>
+      <section className={cardClass}>
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Account settings</h3>
         {loadingProfile ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">Loading your profile…</p>
@@ -233,14 +219,9 @@ const Settings = () => {
             </div>
           </form>
         )}
-      </motion.section>
+      </section>
 
-      <motion.section
-        initial={false}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.04 }}
-        className={cardClass}
-      >
+      <section className={cardClass}>
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Change password</h3>
         <form className="space-y-3" onSubmit={onUpdatePassword}>
           <motion.div
@@ -284,7 +265,45 @@ const Settings = () => {
             </Button>
           </div>
         </form>
-      </motion.section>
+      </section>
+
+      <section className={cardClass}>
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Appearance</h3>
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200/70 bg-white/60 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+          <div>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Dark mode</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Applies on this device.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={theme === "dark"}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition ${
+              theme === "dark" ? "bg-primary" : "bg-slate-300 dark:bg-slate-600"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition ${
+                theme === "dark" ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+      </section>
+
+      <section className={cardClass}>
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Library timezone</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Dates and times in the library use the timezone set by administrators.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/50">
+          <p className="font-semibold text-slate-800 dark:text-slate-100">{timezone}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {offset || "—"} · {formatClock()}
+          </p>
+        </div>
+      </section>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
+import PageHeader from "../../components/ui/PageHeader";
 import {
   BookItem,
   EbookItem,
@@ -183,20 +184,7 @@ const Home = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={false}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-          Home
-        </h2>
-        {/* <p className="text-sm text-slate-500 dark:text-slate-400">
-          Discover e-books tailored to you, trending titles, and new arrivals.
-        </p>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Recommendations use your reading history and favorites.
-        </p> */}
-      </motion.div>
+      <PageHeader title="Home" description="Recommended titles, popular reads, and new arrivals." />
 
       {toast && (
         <div

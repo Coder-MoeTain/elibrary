@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
+import PageHeader from "../../components/ui/PageHeader";
 import { FavoriteItem, getApiErrorMessage, getFavorites } from "../../services/api";
 
 type Toast = { kind: "success" | "error"; message: string } | null;
@@ -33,10 +34,7 @@ const Favorites = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">My Favorites</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Your saved e-books in one place.</p>
-      </motion.div>
+      <PageHeader title="My Favorites" description="Your saved e-books in one place." />
 
       {toast && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200">

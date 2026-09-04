@@ -9,6 +9,7 @@ import AdminTableToolbar from "../../components/ui/AdminTableToolbar";
 import TableInfiniteFooter from "../../components/ui/TableInfiniteFooter";
 import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
+import PageHeader from "../../components/ui/PageHeader";
 import { useAdminTableInfiniteScroll } from "../../components/ui/useAdminTableInfiniteScroll";
 import { ADMIN_TABLE_DISPLAY_MODE } from "../../config/adminTableMode";
 import { isSuperAdmin, SUPER_ADMIN_ONLY_TOOLTIP } from "../../utils/auth";
@@ -512,32 +513,26 @@ const Users = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-            Users Management
-          </h2>
-        </motion.div>
-        <div className="flex flex-wrap items-center gap-3 self-start">
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              className="rounded border-slate-300 text-primary focus:ring-primary dark:border-slate-600"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-            />
-            Show archived
-          </label>
-          <Button
-            type="button"
-            className="inline-flex items-center gap-2"
-            onClick={startCreate}
-          >
-            <Plus className="h-4 w-4" />
-            Add user
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Users Management"
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                className="rounded border-slate-300 text-primary focus:ring-primary dark:border-slate-600"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+              />
+              Show archived
+            </label>
+            <Button type="button" className="inline-flex items-center gap-2" onClick={startCreate}>
+              <Plus className="h-4 w-4" />
+              Add user
+            </Button>
+          </div>
+        }
+      />
 
       {toast && (
         <div

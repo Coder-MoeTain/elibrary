@@ -57,7 +57,7 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
       initial={false}
       animate={{ width: collapsed ? 80 : 260 }}
       transition={{ type: "spring", stiffness: 320, damping: 32 }}
-      className="relative z-10 flex min-h-0 shrink-0 flex-col self-stretch border-r border-slate-200/90 bg-white py-6 dark:border-slate-700 dark:bg-slate-900"
+      className="relative z-10 flex min-h-0 shrink-0 flex-col self-stretch border-r border-slate-200/90 bg-white py-4 dark:border-slate-700 dark:bg-slate-900"
     >
       <div className="mb-8 flex items-center gap-3 px-5">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-md dark:border-slate-600">

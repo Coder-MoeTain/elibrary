@@ -42,6 +42,14 @@ async function start() {
     await db.sequelize.authenticate();
     // eslint-disable-next-line no-console
     console.log('MySQL connection established.');
+    try {
+      const { timezone, offset } = await require('./services/settings.service').syncMysqlTimezone();
+      // eslint-disable-next-line no-console
+      console.log(`Library timezone: ${timezone} (${offset}).`);
+    } catch (tzErr) {
+      // eslint-disable-next-line no-console
+      console.warn('[settings] Could not load timezone (run migrations):', tzErr.message);
+    }
 
     const hasCerts = fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
 

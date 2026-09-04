@@ -22,6 +22,7 @@ function errorMiddleware(err, req, res, next) {
       err.message.includes('Only JPEG') ||
       err.message.includes('Only images') ||
       err.message.includes('Invalid image') ||
+      err.message.includes('Only .sql') ||
       err.message.includes('Unsupported upload field'))
   ) {
     return fail(res, err.message, HTTP_STATUS.BAD_REQUEST);

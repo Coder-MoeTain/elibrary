@@ -1443,4 +1443,85 @@ export async function changeUserPassword(payload: ChangeUserPasswordPayload): Pr
   await api.put("/users/me/password", payload);
 }
 
+export type TimezoneGroup = { region: string; zones: string[] };
+
+export type AppSettings = {
+  timezone: string;
+  offset: string;
+  now: string;
+  today: string;
+  groups: TimezoneGroup[];
+};
+
+export type BackupFile = {
+  fileName: string;
+  size: number;
+  createdAt: string;
+};
+
+function unwrapSettings(raw: unknown): AppSettings {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    timezone: String(r.timezone ?? "Asia/Yangon"),
+    offset: String(r.offset ?? ""),
+    now: String(r.now ?? ""),
+    today: String(r.today ?? ""),
+    groups: Array.isArray(r.groups) ? (r.groups as TimezoneGroup[]) : []
+  };
+}
+
+export async function getAppSettings(): Promise<AppSettings> {
+  const { data } = await api.get<ApiEnvelope<unknown>>("/settings");
+  return unwrapSettings(data.data);
+}
+
+export async function updateAppTimezone(timezone: string): Promise<AppSettings> {
+  const { data } = await api.put<ApiEnvelope<unknown>>("/settings/timezone", { timezone });
+  return unwrapSettings(data.data);
+}
+
+const backupTimeout = 300000;
+
+export async function listBackups(): Promise<BackupFile[]> {
+  const { data } = await api.get<ApiEnvelope<BackupFile[]>>("/settings/backups");
+  return Array.isArray(data.data) ? data.data : [];
+}
+
+export async function createBackup(): Promise<BackupFile> {
+  const { data } = await api.post<ApiEnvelope<BackupFile>>("/settings/backups", {}, { timeout: backupTimeout });
+  return data.data as BackupFile;
+}
+
+export async function downloadBackupFile(fileName: string): Promise<void> {
+  const { data } = await api.get<Blob>(`/settings/backups/${encodeURIComponent(fileName)}`, {
+    responseType: "blob",
+    timeout: backupTimeout
+  });
+  const url = URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function restoreBackupFile(fileName: string): Promise<void> {
+  await api.post(`/settings/backups/${encodeURIComponent(fileName)}/restore`, {}, { timeout: backupTimeout });
+}
+
+export async function restoreBackupUpload(file: File): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+  await api.post("/settings/restore", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: backupTimeout
+  });
+}
+
+export async function deleteBackupFile(fileName: string): Promise<void> {
+  await api.delete(`/settings/backups/${encodeURIComponent(fileName)}`);
+}
+
 export default api;

@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
-import { Plus, Shield, Trash2, User } from "lucide-react";
+import { Plus, Trash2, User } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Modal from "../../components/ui/Modal";
 import { Table } from "../../components/ui/Table";
+import PageHeader from "../../components/ui/PageHeader";
 import Tooltip from "../../components/ui/Tooltip";
 import {
   AdminAccount,
@@ -199,23 +200,16 @@ const AdminManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200">
-            <Shield className="h-6 w-6" aria-hidden />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Admin Management</h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Super Admins only — create admins, assign roles, and remove accounts.
-            </p>
-          </div>
-        </motion.div>
-        <Button type="button" className="inline-flex items-center gap-2 self-start" onClick={() => setOpenAdd(true)}>
-          <Plus className="h-4 w-4" />
-          Add admin
-        </Button>
-      </div>
+      <PageHeader
+        title="Admin Management"
+        description="Super Admins only — create admins, assign roles, and remove accounts."
+        actions={
+          <Button type="button" className="inline-flex items-center gap-2" onClick={() => setOpenAdd(true)}>
+            <Plus className="h-4 w-4" />
+            Add admin
+          </Button>
+        }
+      />
 
       {toast && (
         <div

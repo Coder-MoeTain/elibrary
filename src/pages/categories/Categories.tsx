@@ -7,6 +7,7 @@ import Modal from "../../components/ui/Modal";
 import TablePagination from "../../components/ui/TablePagination";
 import Tooltip from "../../components/ui/Tooltip";
 import { Table } from "../../components/ui/Table";
+import PageHeader from "../../components/ui/PageHeader";
 import { isSuperAdmin, SUPER_ADMIN_ONLY_TOOLTIP } from "../../utils/auth";
 import {
   BookItem,
@@ -218,16 +219,15 @@ const Categories = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Categories Management</h2>
-          {/* <p className="text-sm text-slate-600 dark:text-slate-400">Organize your catalog.</p> */}
-        </motion.div>
-        <Button type="button" className="inline-flex items-center gap-2 self-start" onClick={startCreate}>
-          <Plus className="h-4 w-4" />
-          Add category
-        </Button>
-      </div>
+      <PageHeader
+        title="Categories Management"
+        actions={
+          <Button type="button" className="inline-flex items-center gap-2" onClick={startCreate}>
+            <Plus className="h-4 w-4" />
+            Add category
+          </Button>
+        }
+      />
 
       {toast && (
         <div

@@ -10,6 +10,8 @@ import AdminTableToolbar from "../../components/ui/AdminTableToolbar";
 import TableInfiniteFooter from "../../components/ui/TableInfiniteFooter";
 import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
+import PageHeader from "../../components/ui/PageHeader";
+import { useTimezone } from "../../context/TimezoneContext";
 import { useAdminTableInfiniteScroll } from "../../components/ui/useAdminTableInfiniteScroll";
 import { ADMIN_TABLE_DISPLAY_MODE } from "../../config/adminTableMode";
 import { sortRows } from "../../utils/tableSort";
@@ -59,18 +61,15 @@ const emptyForm = {
   return_date: ""
 };
 
-function todayYmd(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function loanStatus(dueYmd: string, returned: boolean): string {
+function loanStatus(dueYmd: string, returned: boolean, today: string): string {
   if (returned) return "Returned";
   if (!dueYmd || dueYmd === "-") return "Active";
-  if (dueYmd < todayYmd()) return "Overdue";
+  if (dueYmd < today) return "Overdue";
   return "Active";
 }
 
 const RentList = () => {
+  const { todayYmd, formatDateOnly } = useTimezone();
   const [rentRows, setRentRows] = useState<RentItem[]>([]);
   const [books, setBooks] = useState<BookItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -102,7 +101,7 @@ const RentList = () => {
         rent_date: r.rent_date || "-",
         due_date: r.due_date || "-",
         return_date: returned ? r.return_date! : "-",
-        status: loanStatus(r.due_date || "", returned)
+        status: loanStatus(r.due_date || "", returned, todayYmd())
       };
     });
 
@@ -263,7 +262,8 @@ const RentList = () => {
   };
 
   const startCreate = () => {
-    resetForm();
+    setForm({ ...emptyForm, rent_date: todayYmd() });
+    setEditingId(null);
     setOpenForm(true);
   };
 
@@ -372,9 +372,9 @@ const RentList = () => {
   const columns = [
     { key: "book" as const, title: "Book", sortable: true },
     { key: "user" as const, title: "User", sortable: true },
-    { key: "rent_date" as const, title: "Rent Date", sortable: true },
-    { key: "due_date" as const, title: "Due Date", sortable: true },
-    { key: "return_date" as const, title: "Return Date", sortable: true },
+    { key: "rent_date" as const, title: "Rent Date", sortable: true, render: (row: RentRow) => formatDateOnly(String(row.rent_date)) },
+    { key: "due_date" as const, title: "Due Date", sortable: true, render: (row: RentRow) => formatDateOnly(String(row.due_date)) },
+    { key: "return_date" as const, title: "Return Date", sortable: true, render: (row: RentRow) => formatDateOnly(String(row.return_date)) },
     {
       key: "status" as const,
       title: "Status",
@@ -414,16 +414,16 @@ const RentList = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Rent List</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400">Loans, due dates, and returns.</p>
-        </motion.div>
-        <Button type="button" className="inline-flex items-center gap-2 self-start" onClick={startCreate}>
-          <Plus className="h-4 w-4" />
-          Add rental
-        </Button>
-      </div>
+      <PageHeader
+        title="Rent List"
+        description="Loans, due dates, and returns."
+        actions={
+          <Button type="button" className="inline-flex items-center gap-2" onClick={startCreate}>
+            <Plus className="h-4 w-4" />
+            Add rental
+          </Button>
+        }
+      />
 
       {toast && (
         <div
@@ -583,13 +583,13 @@ const RentList = () => {
             <span className="font-semibold">User:</span> {selected?.user}
           </p>
           <p>
-            <span className="font-semibold">Rent date:</span> {selected?.rent_date}
+            <span className="font-semibold">Rent date:</span> {formatDateOnly(selected?.rent_date)}
           </p>
           <p>
-            <span className="font-semibold">Due date:</span> {selected?.due_date}
+            <span className="font-semibold">Due date:</span> {formatDateOnly(selected?.due_date)}
           </p>
           <p>
-            <span className="font-semibold">Return date:</span> {selected?.return_date}
+            <span className="font-semibold">Return date:</span> {formatDateOnly(selected?.return_date)}
           </p>
           <p>
             <span className="font-semibold">Status:</span>{" "}

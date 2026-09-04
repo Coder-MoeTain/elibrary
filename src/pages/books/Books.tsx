@@ -12,6 +12,7 @@ import AdminTableToolbar from "../../components/ui/AdminTableToolbar";
 import TableInfiniteFooter from "../../components/ui/TableInfiniteFooter";
 import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
+import PageHeader from "../../components/ui/PageHeader";
 import { useAdminTableInfiniteScroll } from "../../components/ui/useAdminTableInfiniteScroll";
 import { ADMIN_TABLE_DISPLAY_MODE } from "../../config/adminTableMode";
 import Tooltip from "../../components/ui/Tooltip";
@@ -459,16 +460,15 @@ const Books = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Books Management</h2>
-          {/* <p className="text-sm text-slate-600 dark:text-slate-400">Physical catalog — API ready.</p> */}
-        </motion.div>
-        <Button type="button" className="inline-flex items-center gap-2 self-start" onClick={startCreate}>
-          <Plus className="h-4 w-4" />
-          Add New Book
-        </Button>
-      </div>
+      <PageHeader
+        title="Books Management"
+        actions={
+          <Button type="button" className="inline-flex items-center gap-2" onClick={startCreate}>
+            <Plus className="h-4 w-4" />
+            Add New Book
+          </Button>
+        }
+      />
 
       {toast && (
         <div

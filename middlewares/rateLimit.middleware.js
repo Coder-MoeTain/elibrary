@@ -12,6 +12,9 @@ const authLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  // Trust-proxy is set in app.js when behind nginx; skip this check so misconfig
+  // does not hard-fail auth routes in production.
+  validate: { xForwardedForHeader: false },
   message: jsonMessage('Too many login attempts. Try again in 15 minutes.'),
   statusCode: HTTP_STATUS.TOO_MANY_REQUESTS,
 });
@@ -22,6 +25,7 @@ const summarizeLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     const id = req.user?.id;
     const role = req.user?.role || 'anon';

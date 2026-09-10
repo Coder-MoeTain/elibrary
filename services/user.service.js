@@ -4,6 +4,18 @@ const { hashPassword, comparePassword } = require('../helpers/password.helper');
 const AppError = require('../utils/AppError');
 const { HTTP_STATUS, MESSAGES, USER_STATUS } = require('../constants');
 
+/**
+ * LEFT JOIN department without Department.defaultScope forcing an INNER JOIN
+ * (which drops Google pending users that have no department yet).
+ */
+function departmentInclude() {
+  return {
+    model: Department.unscoped(),
+    as: 'department',
+    required: false,
+  };
+}
+
 async function activeRentalCountsByUserIds(ids) {
   if (!ids.length) return {};
   const rows = await sequelize.query(
@@ -44,19 +56,29 @@ async function registerUser(body) {
     status: USER_STATUS.PENDING,
   });
 
-  return User.findByPk(row.usersId, { include: ['department'] });
+  return User.findByPk(row.usersId, { include: [departmentInclude()] });
 }
 
 async function approveUser(id) {
   const row = await findById(id);
   await row.update({ status: USER_STATUS.APPROVED });
-  return User.findByPk(id, { include: ['department'] });
+  return (
+    (await User.unscoped().findByPk(id, {
+      attributes: { exclude: ['password'] },
+      include: [departmentInclude()],
+    })) || row
+  );
 }
 
 async function rejectUser(id) {
   const row = await findById(id);
   await row.update({ status: USER_STATUS.REJECTED });
-  return User.findByPk(id, { include: ['department'] });
+  return (
+    (await User.unscoped().findByPk(id, {
+      attributes: { exclude: ['password'] },
+      include: [departmentInclude()],
+    })) || row
+  );
 }
 
 async function create(body) {
@@ -74,7 +96,7 @@ async function create(body) {
 async function findAll({ includeDeleted = false } = {}) {
   const opts = {
     order: [['usersId', 'ASC']],
-    include: ['department'],
+    include: [departmentInclude()],
   };
   const rows = includeDeleted
     ? await User.unscoped().findAll({
@@ -95,8 +117,11 @@ async function findAll({ includeDeleted = false } = {}) {
 }
 
 async function findById(id) {
-  const row = await User.findByPk(id, { include: ['department'] });
-  if (!row) throw new AppError(MESSAGES.NOT_FOUND, HTTP_STATUS.NOT_FOUND);
+  const row = await User.unscoped().findByPk(id, {
+    attributes: { exclude: ['password'] },
+    include: [departmentInclude()],
+  });
+  if (!row || row.isDeleted) throw new AppError(MESSAGES.NOT_FOUND, HTTP_STATUS.NOT_FOUND);
   return row;
 }
 
@@ -158,7 +183,7 @@ async function updateMe(userId, body) {
     department_department_id: departmentId,
   });
 
-  return User.findByPk(userId, { include: ['department'] });
+  return User.findByPk(userId, { include: [departmentInclude()] });
 }
 
 async function changeMyPassword(userId, currentPassword, newPassword) {
@@ -194,7 +219,7 @@ async function update(id, body) {
     fields.password = await hashPassword(body.password);
   }
   await row.update(fields);
-  return User.findByPk(id, { include: ['department'] });
+  return User.findByPk(id, { include: [departmentInclude()] });
 }
 
 async function remove(id) {

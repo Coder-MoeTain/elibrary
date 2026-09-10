@@ -31,18 +31,22 @@ const remove = asyncHandler(async (req, res) => {
 
 const approveUser = asyncHandler(async (req, res) => {
   const row = await userService.approveUser(req.params.id);
+  const payload = row && typeof row.toJSON === 'function' ? row.toJSON() : row;
   try {
-    await sendApprovalEmail(row.email, row.userName);
+    if (payload?.email) {
+      await sendApprovalEmail(payload.email, payload.userName);
+    }
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('Approval notification email failed:', err?.message || err);
   }
-  return success(res, { data: row, message: 'User approved' });
+  return success(res, { data: payload, message: 'User approved' });
 });
 
 const rejectUser = asyncHandler(async (req, res) => {
   const row = await userService.rejectUser(req.params.id);
-  return success(res, { data: row, message: 'User rejected' });
+  const payload = row && typeof row.toJSON === 'function' ? row.toJSON() : row;
+  return success(res, { data: payload, message: 'User rejected' });
 });
 
 const profile = asyncHandler(async (req, res) => {

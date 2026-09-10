@@ -111,11 +111,34 @@ async function create(body) {
 }
 
 async function findAll() {
-  return Book.findAll({
-    order: [['bookId', 'ASC']],
-    include: ['category', 'author'],
+const [books, activeRentals] = await Promise.all([
+    Book.findAll({
+      order: [['bookId', 'ASC']],
+      include: ['category', 'author'],
+    }),
+    RentList.findAll({
+      where: { returnDate: null },
+      attributes: ['Books_book_id'],
+      raw: true,
+    }),
+  ]);
+
+  // One query for all active rentals — avoids N+1 /availability calls from clients.
+  const rentedIds = new Set(
+    activeRentals
+      .map((r) => Number(r.Books_book_id))
+      .filter((id) => Number.isFinite(id))
+  );
+
+  return books.map((book) => {
+    const json = typeof book.toJSON === 'function' ? book.toJSON() : book;
+    return {
+      ...json,
+      available: !rentedIds.has(Number(book.bookId)),
+    };
   });
 }
+
 
 async function findById(id) {
   const row = await Book.findByPk(id, { include: ['category', 'author'] });

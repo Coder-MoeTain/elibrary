@@ -530,30 +530,48 @@ async function findAll(options = {}) {
 
 async function findPage(options = {}) {
   const page = Math.max(1, Number(options.page) || 1);
-  const limit = Math.min(50, Math.max(1, Number(options.limit) || 12));
+  const limit = Math.min(100, Math.max(1, Number(options.limit) || 40));
   const offset = (page - 1) * limit;
-  const q = String(options.q || '').trim().toLowerCase();
+  const q = String(options.q || '').trim();
   const category = String(options.category || '').trim();
+  const status = String(options.status || options.summaryStatus || '').trim().toLowerCase();
 
   const where = {};
   if (wantsImported(options.imported)) {
     Object.assign(where, importedClause());
   }
-  if (q) {
-    where.eBookName = { [Op.like]: `%${q}%` };
+  if (status && ['pending', 'processing', 'completed', 'failed'].includes(status)) {
+    where.summaryStatus = status;
   }
 
+  if (q) {
+    const like = `%${String(q).replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+    where[Op.or] = [
+      { eBookName: { [Op.like]: like } },
+      { description: { [Op.like]: like } },
+      { '$author.authorName$': { [Op.like]: like } },
+      { '$category.categoryName$': { [Op.like]: like } },
+    ];
+  }
+
+  const categoryNorm = category.toLowerCase();
   const categoryInclude =
-    category && category !== 'All Categories'
-      ? { model: Category, as: 'category', required: true, where: { categoryName: category } }
-      : 'category';
+    category &&
+    categoryNorm !== 'all' &&
+    categoryNorm !== 'all categories'
+      ? {
+          association: 'category',
+          required: true,
+          where: { categoryName: category },
+        }
+      : { association: 'category', required: false };
 
   const { rows, count } = await EBook.findAndCountAll({
     where,
     limit,
     offset,
-    order: [['eBooksId', 'ASC']],
-    include: [categoryInclude, 'author'],
+    order: [['eBooksId', wantsImported(options.imported) ? 'DESC' : 'ASC']],
+    include: [categoryInclude, { association: 'author', required: false }],
     distinct: true,
     subQuery: false,
   });
@@ -566,13 +584,17 @@ async function findPage(options = {}) {
     return j;
   });
 
+  const total = Number(count) || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   return {
     data,
     pagination: {
       page,
       limit,
-      total: Number(count) || 0,
-      totalPages: Math.max(1, Math.ceil((Number(count) || 0) / limit)),
+      total,
+      totalPages,
+      hasMore: page < totalPages,
     },
   };
 }

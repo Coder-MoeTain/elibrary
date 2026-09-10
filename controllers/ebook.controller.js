@@ -57,6 +57,7 @@ const list = asyncHandler(async (req, res) => {
       q,
       category,
       imported: req.query.imported,
+      status: req.query.status ?? req.query.summaryStatus,
     });
     return success(res, { data: result.data, meta: result.pagination });
   }

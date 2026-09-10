@@ -793,24 +793,34 @@ export async function getEbooksPage(options?: {
   q?: string;
   category?: string;
   imported?: boolean;
-}): Promise<{ items: EbookItem[]; page: number; limit: number; total: number; totalPages: number }> {
+  status?: string;
+}): Promise<{
+  items: EbookItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}> {
   const params: Record<string, string | number> = { paged: "true" };
   if (options?.page) params.page = options.page;
   if (options?.limit) params.limit = options.limit;
   if (options?.q) params.q = options.q;
   if (options?.category) params.category = options.category;
   if (options?.imported) params.imported = "true";
+  if (options?.status) params.status = options.status;
 
   const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks", { params });
   const rows = Array.isArray(data.data) ? data.data : [];
   const items = rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
-  return {
-    items,
-    page: Math.max(1, Number(data.meta?.page ?? options?.page ?? 1)),
-    limit: Math.max(1, Number(data.meta?.limit ?? options?.limit ?? 12)),
-    total: Math.max(0, Number(data.meta?.total ?? items.length)),
-    totalPages: Math.max(1, Number(data.meta?.totalPages ?? 1)),
-  };
+  const page = Math.max(1, Number(data.meta?.page ?? options?.page ?? 1));
+  const limit = Math.max(1, Number(data.meta?.limit ?? options?.limit ?? 40));
+  const total = Math.max(0, Number(data.meta?.total ?? items.length));
+  const rawTotalPages = data.meta?.totalPages ?? Math.ceil(total / limit);
+  const totalPages = Math.max(1, Number(rawTotalPages) || 1);
+  const hasMore =
+    typeof data.meta?.hasMore === "boolean" ? data.meta.hasMore : page < totalPages;
+  return { items, page, limit, total, totalPages, hasMore };
 }
 
 /** Member-only: categories inferred from reads + favorites, else recent catalog. */

@@ -576,7 +576,8 @@ export async function getBooksPage(options?: {
   const page = Math.max(1, Number(data.meta?.page ?? options?.page ?? 1));
   const limit = Math.max(1, Number(data.meta?.limit ?? options?.limit ?? 40));
   const total = Math.max(0, Number(data.meta?.total ?? items.length));
-  const totalPages = Math.max(1, Number(data.meta?.totalPages ?? Math.ceil(total / limit) || 1));
+  const rawTotalPages = data.meta?.totalPages ?? Math.ceil(total / limit);
+  const totalPages = Math.max(1, Number(rawTotalPages) || 1);
   const hasMore =
     typeof (data.meta as { hasMore?: boolean } | undefined)?.hasMore === "boolean"
       ? Boolean((data.meta as { hasMore?: boolean }).hasMore)

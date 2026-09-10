@@ -94,23 +94,41 @@ async function create(body) {
 }
 
 async function findAll({ includeDeleted = false } = {}) {
-  const opts = {
-    order: [['usersId', 'ASC']],
-    include: [departmentInclude()],
-  };
+  // Do not JOIN department here — Sequelize + Department.defaultScope can drop
+  // users with NULL department_department_id (Google Sign-In pending/approved).
   const rows = includeDeleted
     ? await User.unscoped().findAll({
-        ...opts,
         attributes: { exclude: ['password'] },
-        where: {},
+        order: [['usersId', 'ASC']],
       })
-    : await User.findAll(opts);
+    : await User.findAll({
+        order: [['usersId', 'ASC']],
+      });
+
+  const deptIds = [
+    ...new Set(
+      rows
+        .map((r) => r.department_department_id)
+        .filter((id) => id != null && Number(id) > 0)
+        .map((id) => Number(id))
+    ),
+  ];
+
+  const deptRows = deptIds.length
+    ? await Department.unscoped().findAll({
+        where: { departmentId: { [Op.in]: deptIds } },
+      })
+    : [];
+  const deptMap = Object.fromEntries(deptRows.map((d) => [d.departmentId, d]));
 
   const ids = rows.map((r) => r.usersId);
   const rentalMap = await activeRentalCountsByUserIds(ids);
 
   return rows.map((row) => {
     const j = row.toJSON();
+    const deptId = j.department_department_id != null ? Number(j.department_department_id) : null;
+    const dept = deptId != null ? deptMap[deptId] : null;
+    j.department = dept ? dept.toJSON() : null;
     j.activeRentalCount = rentalMap[row.usersId] ?? 0;
     return j;
   });

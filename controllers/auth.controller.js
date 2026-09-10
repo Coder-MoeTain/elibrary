@@ -49,15 +49,7 @@ const register = asyncHandler(async (req, res) => {
 const googleSignIn = asyncHandler(async (req, res) => {
   const result = await authService.googleSignIn({
     idToken: req.body.idToken,
-    departmentId: req.body.departmentId ?? req.body.department_id,
   });
-
-  if (result.status === 'NEEDS_DEPARTMENT') {
-    return success(res, {
-      data: result,
-      message: 'Select a department to submit your registration',
-    });
-  }
 
   if (result.status === 'PENDING') {
     return created(res, result, MESSAGES.REGISTRATION_SUBMITTED);

@@ -20,12 +20,6 @@ const register = [
 
 const googleSignIn = [
   body('idToken').trim().notEmpty().isLength({ max: 4096 }),
-  body('departmentId')
-    .optional({ values: 'null' })
-    .isInt({ min: 1 }),
-  body('department_id')
-    .optional({ values: 'null' })
-    .isInt({ min: 1 }),
 ];
 
 module.exports = { adminLogin, userLogin, register, googleSignIn };

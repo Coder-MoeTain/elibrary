@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Admin, User, Department } = require('../models');
+const { Admin, User } = require('../models');
 const { comparePassword } = require('../helpers/password.helper');
 const { signToken } = require('../helpers/jwt.helper');
 const { verifyGoogleIdToken } = require('../helpers/googleAuth.helper');
@@ -71,10 +71,9 @@ async function uniqueUserNameFromGoogle({ email, name }) {
  * Google Sign-In for members.
  * - Existing APPROVED → JWT
  * - Existing PENDING / REJECTED → error
- * - New without departmentId → NEEDS_DEPARTMENT
- * - New with departmentId → create PENDING (no JWT)
+ * - New → create PENDING (no JWT); department left empty for admin
  */
-async function googleSignIn({ idToken, departmentId }) {
+async function googleSignIn({ idToken }) {
   const profile = await verifyGoogleIdToken(idToken);
   const email = profile.email;
 
@@ -96,24 +95,6 @@ async function googleSignIn({ idToken, departmentId }) {
     return memberTokenPayload(existing);
   }
 
-  const parsedDepartmentId =
-    departmentId === undefined || departmentId === null || departmentId === ''
-      ? null
-      : Number.parseInt(String(departmentId), 10);
-
-  if (!Number.isInteger(parsedDepartmentId) || parsedDepartmentId < 1) {
-    return {
-      status: 'NEEDS_DEPARTMENT',
-      email,
-      name: profile.name || null,
-    };
-  }
-
-  const department = await Department.findByPk(parsedDepartmentId);
-  if (!department) {
-    throw new AppError(MESSAGES.INVALID_DEPARTMENT, HTTP_STATUS.BAD_REQUEST);
-  }
-
   const conflict = await User.unscoped().findOne({
     where: {
       [Op.and]: [{ [Op.or]: [{ email }, { userName: email }] }, { isDeleted: false }],
@@ -129,7 +110,7 @@ async function googleSignIn({ idToken, departmentId }) {
     email,
     password: null,
     dateOfBirth: null,
-    department_department_id: parsedDepartmentId,
+    department_department_id: null,
     status: USER_STATUS.PENDING,
   });
 

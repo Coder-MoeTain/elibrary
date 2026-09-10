@@ -114,7 +114,18 @@ async function googleSignIn({ idToken }) {
     status: USER_STATUS.PENDING,
   });
 
-  const created = await User.findByPk(row.usersId, { include: ['department'] });
+  // Avoid INNER JOIN dropping the row when department is null; defaultScope can also
+  // interfere with findByPk — use the created instance (or unscoped reload).
+  let created = row;
+  try {
+    created =
+      (await User.unscoped().findByPk(row.usersId, {
+        include: [{ association: 'department', required: false }],
+      })) || row;
+  } catch {
+    created = row;
+  }
+
   const json = created.toJSON();
   delete json.password;
 

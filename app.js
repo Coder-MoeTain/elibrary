@@ -17,6 +17,19 @@ const coversPath = path.join(uploadsPath, 'covers');
 const booksCoversPath = path.join(uploadsPath, 'books', 'covers');
 
 /**
+ * Behind nginx / TLS terminator, trust X-Forwarded-* so rate-limit + req.ip work.
+ * Set TRUST_PROXY=false only for direct (non-proxied) local debugging.
+ */
+const trustProxyEnv = String(process.env.TRUST_PROXY || '').trim().toLowerCase();
+if (trustProxyEnv === 'false' || trustProxyEnv === '0') {
+  app.set('trust proxy', false);
+} else if (trustProxyEnv !== '') {
+  const hops = Number.parseInt(trustProxyEnv, 10);
+  app.set('trust proxy', Number.isFinite(hops) && hops > 0 ? hops : 1);
+} else if (appConfig.isProd || process.env.USE_HTTPS === 'true' || process.env.USE_TLS === 'true') {
+  app.set('trust proxy', 1);
+}
+/**
  * Set USE_HTTPS=true when the app is only served over HTTPS (nginx TLS or USE_TLS).
  * On plain HTTP (LAN / IP:3000), CSP upgrade-insecure-requests breaks asset loading.
  */

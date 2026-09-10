@@ -14,6 +14,7 @@
     "seed": "sequelize-cli db:seed:all",
     "seed:undo": "sequelize-cli db:seed:undo:all",
     "import:pdfs": "node scripts/import-new-pdf-ebooks.js",
+    "thumbs:pregenerate": "node scripts/pregenerate-cover-thumbs.js",
     "client:dev": "vite",
     "client:build": "tsc --noEmit && vite build",
     "client:preview": "vite preview"

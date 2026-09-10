@@ -4,6 +4,7 @@ const path = require('path');
 const AppError = require('../utils/AppError');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 const { resolveSafeUploadPath } = require('../utils/uploadPath');
+const { deleteCoverThumbsForSource } = require('../utils/coverThumb');
 
 function pickBookName(body) {
   return body.bookName ?? body.book_name;
@@ -54,6 +55,7 @@ function resolveUploadPathFromUrl(urlPath) {
 }
 
 function safeDeleteUpload(urlPath) {
+  deleteCoverThumbsForSource(urlPath);
   const abs = resolveUploadPathFromUrl(urlPath);
   if (!abs) return;
   try {

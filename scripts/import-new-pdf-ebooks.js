@@ -7,6 +7,9 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { Op } = require('sequelize');
 const { EBook, Author, Category, sequelize } = require('../models');
+const { pregenerateCoverThumbs } = require('../utils/coverThumb');
+
+const COVER_RENDER_DPI = '120';
 
 const appRoot = path.resolve(__dirname, '..');
 const defaultSourceDir = path.resolve(appRoot, '..', 'new_pdf');
@@ -352,14 +355,14 @@ function errorToMessage(err) {
 
 async function renderWithPdftoppm(pdfPath, pngDest) {
   const outputPrefix = pngDest.replace(/\.png$/i, '');
-  await runCommand('pdftoppm', ['-f', '1', '-l', '1', '-singlefile', '-png', '-r', '160', pdfPath, outputPrefix]);
+  await runCommand('pdftoppm', ['-f', '1', '-l', '1', '-singlefile', '-png', `-r`, COVER_RENDER_DPI, pdfPath, outputPrefix]);
   await fs.promises.access(pngDest);
   return 'pdftoppm';
 }
 
 async function renderWithPdftocairo(pdfPath, pngDest) {
   const outputPrefix = pngDest.replace(/\.png$/i, '');
-  await runCommand('pdftocairo', ['-f', '1', '-l', '1', '-singlefile', '-png', '-r', '160', pdfPath, outputPrefix]);
+  await runCommand('pdftocairo', ['-f', '1', '-l', '1', '-singlefile', '-png', `-r`, COVER_RENDER_DPI, pdfPath, outputPrefix]);
   await fs.promises.access(pngDest);
   return 'pdftocairo';
 }
@@ -367,7 +370,7 @@ async function renderWithPdftocairo(pdfPath, pngDest) {
 async function renderWithMagick(pdfPath, pngDest) {
   await runCommand('magick', [
     '-density',
-    '160',
+    COVER_RENDER_DPI,
     `${pdfPath}[0]`,
     '-background',
     'white',
@@ -391,7 +394,7 @@ async function renderWithGhostscript(command, pdfPath, pngDest) {
     '-dFirstPage=1',
     '-dLastPage=1',
     '-sDEVICE=png16m',
-    '-r160',
+    `-r${COVER_RENDER_DPI}`,
     '-dTextAlphaBits=4',
     '-dGraphicsAlphaBits=4',
     `-sOutputFile=${pngDest}`,
@@ -402,7 +405,7 @@ async function renderWithGhostscript(command, pdfPath, pngDest) {
 }
 
 async function renderWithMutool(pdfPath, pngDest) {
-  await runCommand('mutool', ['draw', '-o', pngDest, '-r', '160', pdfPath, '1']);
+  await runCommand('mutool', ['draw', '-o', pngDest, '-r', COVER_RENDER_DPI, pdfPath, '1']);
   await fs.promises.access(pngDest);
   return 'mutool';
 }
@@ -419,6 +422,8 @@ async function renderWithPdfPoppler(pdfPath, pngDest) {
     out_dir: outDir,
     out_prefix: outPrefix,
     page: 1,
+    // ~letter width at ~120 DPI; keeps catalog covers smaller for production.
+    scale: 1024,
   });
   await fs.promises.access(pngDest);
   return 'pdf-poppler';
@@ -592,6 +597,10 @@ async function importPdf(filePath, opts, index) {
     const coverImage = `/uploads/covers/${pngCoverFileName}`;
     coverImageForUpdate = coverImage;
     coverImageForCreate = coverImage;
+    const thumbResult = await pregenerateCoverThumbs(coverImage);
+    if (thumbResult.ok && thumbResult.generated > 0) {
+      coverRenderer = `${coverRenderer}; thumbs+${thumbResult.generated}`;
+    }
   } catch (err) {
     if (opts.strictCover) {
       throw err;

@@ -3,6 +3,7 @@ const ebookService = require('../services/ebook.service');
 const asyncHandler = require('../utils/asyncHandler');
 const { success, created, noContent, fail } = require('../helpers/response.helper');
 const { HTTP_STATUS, ROLES } = require('../constants');
+const { pregenerateCoverThumbs } = require('../utils/coverThumb');
 
 function normalizeMultipartBody(req) {
   const body = req.body ?? {};
@@ -37,6 +38,9 @@ const create = asyncHandler(async (req, res) => {
     return fail(res, 'Missing required fields', HTTP_STATUS.UNPROCESSABLE);
   }
   const row = await ebookService.create(body);
+  if (body.coverImage) {
+    await pregenerateCoverThumbs(body.coverImage);
+  }
   return created(res, row);
 });
 
@@ -121,6 +125,9 @@ const trackRead = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
   const body = normalizeMultipartBody(req);
   const row = await ebookService.update(req.params.id, body);
+  if (body.coverImage) {
+    await pregenerateCoverThumbs(body.coverImage);
+  }
   return success(res, { data: row, message: 'Updated' });
 });
 

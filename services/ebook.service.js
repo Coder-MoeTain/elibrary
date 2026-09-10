@@ -5,6 +5,7 @@ const { pathToFileURL } = require('url');
 const { getOpenAiClient } = require('./openai.client');
 const { EBook, EBookRead, Favorite, Author, Category, sequelize } = require('../models');
 const { resolveSafeUploadPath } = require('../utils/uploadPath');
+const { deleteCoverThumbsForSource } = require('../utils/coverThumb');
 
 /** Lazy-loaded: pdf-parse/pdfjs can polyfill `window`/`document` in some Node runtimes. */
 let pdfParseLib;
@@ -725,6 +726,9 @@ async function getOrGenerateSummary(ebookId, options = {}) {
 }
 
 async function update(id, body) {
+  let oldCoverImage = null;
+  let nextCoverImage = null;
+
   await sequelize.transaction(async (transaction) => {
     const row = await EBook.findByPk(id, { transaction });
     if (!row) throw new AppError(MESSAGES.NOT_FOUND, HTTP_STATUS.NOT_FOUND);
@@ -748,12 +752,15 @@ async function update(id, body) {
       authorId = authorIdFromBody;
     }
 
+    oldCoverImage = row.coverImage;
+    nextCoverImage = body.coverImage !== undefined ? body.coverImage : row.coverImage;
+
     await row.update(
       {
         eBookName: body.eBookName ?? row.eBookName,
         releaseDate: body.releaseDate !== undefined ? body.releaseDate : row.releaseDate,
         description: body.description !== undefined ? body.description : row.description,
-        coverImage: body.coverImage !== undefined ? body.coverImage : row.coverImage,
+        coverImage: nextCoverImage,
         pdfFile: body.pdfFile !== undefined ? body.pdfFile : row.pdfFile,
         Category_category_id: categoryId,
         Author_Author_id: authorId,
@@ -761,6 +768,11 @@ async function update(id, body) {
       { transaction }
     );
   });
+
+  if (oldCoverImage && nextCoverImage && oldCoverImage !== nextCoverImage) {
+    deleteCoverThumbsForSource(oldCoverImage);
+  }
+
   return findById(id);
 }
 
@@ -772,6 +784,10 @@ async function remove(id) {
   const pdfFile = row.pdfFile;
 
   await row.destroy();
+
+  if (coverImage) {
+    deleteCoverThumbsForSource(coverImage);
+  }
 
   for (const filePath of [coverImage, pdfFile]) {
     const abs = resolvePdfAbsolutePath(filePath);

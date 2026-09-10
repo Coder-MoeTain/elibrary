@@ -1,6 +1,7 @@
 const bookService = require('../services/book.service');
 const asyncHandler = require('../utils/asyncHandler');
 const { success, created, noContent } = require('../helpers/response.helper');
+const { pregenerateCoverThumbs } = require('../utils/coverThumb');
 
 function normalizeMultipartBody(req) {
   const body = req.body ?? {};
@@ -25,7 +26,11 @@ function normalizeMultipartBody(req) {
 }
 
 const create = asyncHandler(async (req, res) => {
-  const row = await bookService.create(normalizeMultipartBody(req));
+  const body = normalizeMultipartBody(req);
+  const row = await bookService.create(body);
+  if (body.coverImage) {
+    await pregenerateCoverThumbs(body.coverImage);
+  }
   return created(res, row);
 });
 
@@ -45,7 +50,11 @@ const availability = asyncHandler(async (req, res) => {
 });
 
 const update = asyncHandler(async (req, res) => {
-  const row = await bookService.update(req.params.id, normalizeMultipartBody(req));
+  const body = normalizeMultipartBody(req);
+  const row = await bookService.update(req.params.id, body);
+  if (body.coverImage) {
+    await pregenerateCoverThumbs(body.coverImage);
+  }
   return success(res, { data: row, message: 'Updated' });
 });
 

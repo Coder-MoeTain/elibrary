@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { ChevronDown, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
@@ -13,11 +14,9 @@ import TableInfiniteFooter from "../../components/ui/TableInfiniteFooter";
 import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
 import PageHeader from "../../components/ui/PageHeader";
-import { useAdminTableInfiniteScroll } from "../../components/ui/useAdminTableInfiniteScroll";
 import { ADMIN_TABLE_DISPLAY_MODE } from "../../config/adminTableMode";
 import Tooltip from "../../components/ui/Tooltip";
 import { isSuperAdmin, SUPER_ADMIN_ONLY_TOOLTIP } from "../../utils/auth";
-import { sortRows } from "../../utils/tableSort";
 import {
   AuthorOption,
   BookItem,
@@ -27,9 +26,8 @@ import {
   deleteBook,
   getApiErrorMessage,
   getAuthors,
-  getBooks,
+  getBooksPage,
   getCategories,
-  getRentList,
   updateBook
 } from "../../services/api";
 
@@ -79,6 +77,7 @@ const Books = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const statusHeaderRef = useRef<HTMLDivElement>(null);
@@ -94,17 +93,20 @@ const Books = () => {
   const [categoryQuery, setCategoryQuery] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  const hydrateRows = (rows: BookItem[], activeBookIds: Set<number>): BookRow[] =>
+  const hydrateRows = (rows: BookItem[]): BookRow[] =>
     rows.map((b) => ({
       id: b.book_id,
       book_name: b.book_name,
       cover_image: b.cover_image ?? "",
       author_name: b.author_name || `Author #${b.author_id}`,
       category_name: b.category_name || `Category #${b.category_id}`,
-      status: activeBookIds.has(b.book_id) ? "unavailable" : "available",
+      status: b.available ? "available" : "unavailable",
       release_date: b.release_date ?? "-",
       description: b.description ?? "",
       place: b.place ?? "",
@@ -112,31 +114,102 @@ const Books = () => {
       category_id: b.category_id
     }));
 
+  const availableParam =
+    statusFilter === "all" ? undefined : statusFilter === "available";
+
+  const sortBy =
+    sortKey === "book_name"
+      ? "bookName"
+      : sortKey === "release_date"
+        ? "releaseDate"
+        : "bookId";
+
+  const loadBooks = useCallback(
+    async (opts: { page: number; append?: boolean; showSpinner?: boolean }) => {
+      const append = Boolean(opts.append);
+      if (opts.showSpinner !== false && !append) setLoading(true);
+      if (append) setLoadingMore(true);
+      try {
+        const result = await getBooksPage({
+          page: opts.page,
+          limit,
+          q: debouncedQ || undefined,
+          available: availableParam,
+          sortBy,
+          sortDir: sortOrder
+        });
+        const mapped = hydrateRows(result.items);
+        setBooks((prev) =>
+          append
+            ? [...prev, ...mapped.filter((r) => !prev.some((p) => p.id === r.id))]
+            : mapped
+        );
+        setTotal(result.total);
+        setHasMore(result.hasMore);
+        setPage(result.page);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [availableParam, debouncedQ, limit, sortBy, sortOrder]
+  );
+
   const fetchAll = async () => {
     try {
-      setLoading(true);
-      const [bookRows, authorRows, categoryRows, rentRows] = await Promise.all([
-        getBooks(),
+      const [authorRows, categoryRows] = await Promise.all([
         getAuthors(),
-        getCategories(),
-        getRentList()
+        getCategories()
       ]);
-      const activeBookIds = new Set(
-        rentRows.filter((r) => !r.return_date).map((r) => Number(r.Books_book_id)).filter((id) => Number.isFinite(id))
-      );
-      setBooks(hydrateRows(bookRows, activeBookIds));
       setAuthors(authorRows);
       setCategories(categoryRows);
+      await loadBooks({ page: 1, showSpinner: true });
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
-    void fetchAll();
+    const t = window.setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => window.clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    void getAuthors()
+      .then(setAuthors)
+      .catch((err) => setToast({ kind: "error", message: getApiErrorMessage(err) }));
+    void getCategories()
+      .then(setCategories)
+      .catch((err) => setToast({ kind: "error", message: getApiErrorMessage(err) }));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await loadBooks({ page: 1 });
+      } catch (err) {
+        if (!cancelled) setToast({ kind: "error", message: getApiErrorMessage(err) });
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadBooks]);
+
+  const { ref: infiniteSentinelRef, inView: infiniteInView } = useInView({
+    threshold: 0,
+    rootMargin: "160px"
+  });
+
+  useEffect(() => {
+    if (ADMIN_TABLE_DISPLAY_MODE !== "infinite") return;
+    if (!infiniteInView || !hasMore || loadingMore || loading) return;
+    void loadBooks({ page: page + 1, append: true }).catch((err) =>
+      setToast({ kind: "error", message: getApiErrorMessage(err) })
+    );
+  }, [infiniteInView, hasMore, loadingMore, loading, page, loadBooks]);
 
   useEffect(() => {
     if (!statusMenuOpen) return;
@@ -149,49 +222,6 @@ const Books = () => {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [statusMenuOpen]);
 
-  const filtered = useMemo(() => {
-    let rows = books;
-    if (statusFilter !== "all") {
-      rows = rows.filter((r) => r.status === statusFilter);
-    }
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter(
-      (r) =>
-        String(r.book_name).toLowerCase().includes(s) ||
-        String(r.author_name).toLowerCase().includes(s) ||
-        String(r.category_name).toLowerCase().includes(s) ||
-        String(r.place).toLowerCase().includes(s)
-    );
-  }, [books, q, statusFilter]);
-
-  const filterResetKey = `${q}|${statusFilter}`;
-
-  useEffect(() => {
-    setPage(1);
-  }, [q, statusFilter]);
-
-  const sortedFiltered = useMemo(
-    () => sortRows(filtered, sortKey, sortOrder),
-    [filtered, sortKey, sortOrder],
-  );
-
-  const totalSorted = sortedFiltered.length;
-
-  const paginatedBooks = useMemo(() => {
-    const start = (page - 1) * limit;
-    return sortedFiltered.slice(start, start + limit);
-  }, [sortedFiltered, page, limit]);
-
-  const infiniteScroll = useAdminTableInfiniteScroll(sortedFiltered, filterResetKey, {
-    step: limit,
-  });
-
-  useEffect(() => {
-    const tp = totalSorted === 0 ? 1 : Math.ceil(totalSorted / limit);
-    if (page > tp) setPage(tp);
-  }, [totalSorted, limit, page]);
-
   const onSortClick = (key: string) => {
     if (sortKey === key) setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
     else {
@@ -200,11 +230,13 @@ const Books = () => {
     }
   };
 
-  const tableRows =
-    ADMIN_TABLE_DISPLAY_MODE === "infinite"
-      ? infiniteScroll.visibleSlice
-      : paginatedBooks;
+  const onPageChange = (next: number) => {
+    void loadBooks({ page: next }).catch((err) =>
+      setToast({ kind: "error", message: getApiErrorMessage(err) })
+    );
+  };
 
+  const tableRows = books;
   const rowNumberBase =
     ADMIN_TABLE_DISPLAY_MODE === "infinite" ? 0 : (page - 1) * limit;
 
@@ -500,7 +532,7 @@ const Books = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             Loading books...
           </div>
-        ) : filtered.length === 0 ? (
+        ) : books.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             No books found.
           </div>
@@ -518,17 +550,16 @@ const Books = () => {
               <TablePagination
                 page={page}
                 limit={limit}
-                total={totalSorted}
-                onPageChange={setPage}
+                total={total}
+                onPageChange={onPageChange}
                 onLimitChange={(val) => {
                   setLimit(val);
-                  setPage(1);
                 }}
               />
             ) : (
               <TableInfiniteFooter
-                sentinelRef={infiniteScroll.sentinelRef}
-                hasMore={infiniteScroll.hasMore}
+                sentinelRef={infiniteSentinelRef}
+                hasMore={hasMore || loadingMore}
               />
             )}
           </>

@@ -7,7 +7,7 @@ import {
   BookItem,
   EbookItem,
   getApiErrorMessage,
-  getBooks,
+  getBooksPage,
   getMostPopularEbooks,
   getNewUploads,
   getRecommendedEbooks,
@@ -155,13 +155,13 @@ const Home = () => {
       try {
         setLoading(true);
         const [physical, rec, pop, neu] = await Promise.all([
-          getBooks(),
+          getBooksPage({ page: 1, limit: 8 }),
           getRecommendedEbooks(),
           getMostPopularEbooks(),
           getNewUploads(),
         ]);
         if (!cancelled) {
-          setBooks(physical.slice(0, 5));
+          setBooks(physical.items.slice(0, 5));
           setRecommended(rec);
           setPopular(pop);
           setNewUploads(neu);

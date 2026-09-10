@@ -1,10 +1,13 @@
+const { Op } = require('sequelize');
 const { Book, RentList, Author, Category, sequelize } = require('../models');
 const fs = require('fs');
-const path = require('path');
 const AppError = require('../utils/AppError');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 const { resolveSafeUploadPath } = require('../utils/uploadPath');
 const { deleteCoverThumbsForSource } = require('../utils/coverThumb');
+
+const MAX_PAGE_LIMIT = 100;
+const DEFAULT_PAGE_LIMIT = 40;
 
 function pickBookName(body) {
   return body.bookName ?? body.book_name;
@@ -77,6 +80,57 @@ function buildPayload(body, authorId, categoryId) {
   };
 }
 
+function escapeLike(value) {
+  return String(value).replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+function parseAvailableFilter(raw) {
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (v === '1' || v === 'true' || v === 'yes' || v === 'available') return true;
+  if (v === '0' || v === 'false' || v === 'no' || v === 'unavailable') return false;
+  return null;
+}
+
+const SORT_FIELDS = {
+  bookId: 'bookId',
+  book_id: 'bookId',
+  bookName: 'bookName',
+  book_name: 'bookName',
+  releaseDate: 'releaseDate',
+  release_date: 'releaseDate',
+};
+
+function resolveSort(options = {}) {
+  const key = SORT_FIELDS[String(options.sortBy || options.sort || 'bookId')] || 'bookId';
+  const dir =
+    String(options.sortDir || options.order || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+  return [[key, dir]];
+}
+
+async function loadActiveRentedIdSet() {
+  const activeRentals = await RentList.findAll({
+    where: { returnDate: null },
+    attributes: ['Books_book_id'],
+    raw: true,
+  });
+  return new Set(
+    activeRentals
+      .map((r) => Number(r.Books_book_id))
+      .filter((id) => Number.isFinite(id))
+  );
+}
+
+function withAvailability(books, rentedIds) {
+  return books.map((book) => {
+    const json = typeof book.toJSON === 'function' ? book.toJSON() : book;
+    const id = Number(book.bookId ?? json.bookId);
+    return {
+      ...json,
+      available: !rentedIds.has(id),
+    };
+  });
+}
+
 async function create(body) {
   return sequelize.transaction(async (transaction) => {
     let authorId = Number(pickAuthorId(body)) || 0;
@@ -112,35 +166,108 @@ async function create(body) {
   });
 }
 
+/** Full catalog — kept for admin dropdowns / legacy clients. Prefer [findPage] for UI lists. */
 async function findAll() {
-const [books, activeRentals] = await Promise.all([
+  const [books, rentedIds] = await Promise.all([
     Book.findAll({
       order: [['bookId', 'ASC']],
       include: ['category', 'author'],
     }),
-    RentList.findAll({
-      where: { returnDate: null },
-      attributes: ['Books_book_id'],
-      raw: true,
-    }),
+    loadActiveRentedIdSet(),
   ]);
-
-  // One query for all active rentals — avoids N+1 /availability calls from clients.
-  const rentedIds = new Set(
-    activeRentals
-      .map((r) => Number(r.Books_book_id))
-      .filter((id) => Number.isFinite(id))
-  );
-
-  return books.map((book) => {
-    const json = typeof book.toJSON === 'function' ? book.toJSON() : book;
-    return {
-      ...json,
-      available: !rentedIds.has(Number(book.bookId)),
-    };
-  });
+  return withAvailability(books, rentedIds);
 }
 
+/**
+ * Cursor-friendly offset pagination with server-side search / filters.
+ * Query: page, limit, q, category, available, sortBy, sortDir
+ */
+async function findPage(options = {}) {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.min(
+    MAX_PAGE_LIMIT,
+    Math.max(1, Number(options.limit) || DEFAULT_PAGE_LIMIT)
+  );
+  const offset = (page - 1) * limit;
+  const q = String(options.q || '').trim();
+  const category = String(options.category || '').trim();
+  const availableFilter = parseAvailableFilter(options.available);
+
+  const rentedIds = await loadActiveRentedIdSet();
+  const rentedList = [...rentedIds];
+
+  const where = {};
+
+  if (availableFilter === true) {
+    if (rentedList.length) {
+      where.bookId = { [Op.notIn]: rentedList };
+    }
+  } else if (availableFilter === false) {
+    if (!rentedList.length) {
+      return {
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 1,
+          hasMore: false,
+        },
+      };
+    }
+    where.bookId = { [Op.in]: rentedList };
+  }
+
+  if (q) {
+    const like = `%${escapeLike(q)}%`;
+    where[Op.or] = [
+      { bookName: { [Op.like]: like } },
+      { description: { [Op.like]: like } },
+      { place: { [Op.like]: like } },
+      { '$author.authorName$': { [Op.like]: like } },
+      { '$category.categoryName$': { [Op.like]: like } },
+    ];
+  }
+
+  const categoryInclude =
+    category && category.toLowerCase() !== 'all'
+      ? {
+          association: 'category',
+          required: true,
+          where: { categoryName: category },
+        }
+      : { association: 'category', required: false };
+
+  const authorInclude = {
+    association: 'author',
+    required: false,
+  };
+
+  const { rows, count } = await Book.findAndCountAll({
+    where,
+    limit,
+    offset,
+    order: resolveSort(options),
+    include: [categoryInclude, authorInclude],
+    distinct: true,
+    subQuery: false,
+  });
+
+  const total = Number(count) || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const data = withAvailability(rows, rentedIds);
+
+  return {
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasMore: page < totalPages,
+    },
+  };
+}
 
 async function findById(id) {
   const row = await Book.findByPk(id, { include: ['category', 'author'] });
@@ -193,6 +320,7 @@ async function getAvailability(bookId) {
 module.exports = {
   create,
   findAll,
+  findPage,
   findById,
   update,
   remove,

@@ -5,8 +5,15 @@ import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import PageHeader from "../../components/ui/PageHeader";
+import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
-import { BookItem, getApiErrorMessage, getBookAvailability, getBooks } from "../../services/api";
+import {
+  BookItem,
+  CategoryOption,
+  getApiErrorMessage,
+  getBooksPage,
+  getCategories
+} from "../../services/api";
 
 type Toast = { kind: "success" | "error"; message: string } | null;
 
@@ -25,46 +32,80 @@ type BookRow = Record<string, unknown> & {
 type ViewMode = "grid" | "list";
 const FALLBACK_COVER = "/sidebar-admin-icon.png";
 const skeletonCards = Array.from({ length: 10 }, (_, i) => i);
+const PAGE_SIZE = 24;
+
+function mapBook(b: BookItem): BookRow {
+  return {
+    id: b.book_id,
+    book_name: b.book_name,
+    cover_image: b.cover_image ?? "",
+    author_name: b.author_name || `Author #${b.author_id}`,
+    category_name: b.category_name || `Category #${b.category_id}`,
+    place: b.place || "",
+    status: b.available ? "available" : "unavailable",
+    release_date: b.release_date ?? "-",
+    description: b.description ?? ""
+  };
+}
 
 const Books = () => {
   const navigate = useNavigate();
   const [rows, setRows] = useState<BookRow[]>([]);
+  const [categories, setCategories] = useState<string[]>(["All Categories"]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All Categories");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [toast, setToast] = useState<Toast>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => window.clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, selectedCategory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCategories = async () => {
+      try {
+        const cats = await getCategories();
+        if (cancelled) return;
+        const names = cats
+          .map((c: CategoryOption) => c.category_name)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+        setCategories(["All Categories", ...names]);
+      } catch {
+        // Keep All Categories only.
+      }
+    };
+    void loadCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
         setLoading(true);
-        const books = await getBooks();
-        const availabilityById = new Map<number, boolean>();
-        await Promise.all(
-          books.map(async (book) => {
-            try {
-              const result = await getBookAvailability(book.book_id);
-              availabilityById.set(book.book_id, result.available);
-            } catch {
-              // Conservative fallback: unknown availability treated as unavailable.
-              availabilityById.set(book.book_id, false);
-            }
-          })
-        );
-        const mapped: BookRow[] = books.map((b: BookItem) => ({
-          id: b.book_id,
-          book_name: b.book_name,
-          cover_image: b.cover_image ?? "",
-          author_name: b.author_name || `Author #${b.author_id}`,
-          category_name: b.category_name || `Category #${b.category_id}`,
-          place: b.place || "",
-          status: availabilityById.get(b.book_id) ? "available" : "unavailable",
-          release_date: b.release_date ?? "-",
-          description: b.description ?? ""
-        }));
-        if (!cancelled) setRows(mapped);
+        const result = await getBooksPage({
+          page,
+          limit: PAGE_SIZE,
+          q: debouncedQ || undefined,
+          category:
+            selectedCategory === "All Categories" ? undefined : selectedCategory
+        });
+        if (cancelled) return;
+        setRows(result.items.map(mapBook));
+        setTotal(result.total);
       } catch (err) {
         if (!cancelled) setToast({ kind: "error", message: getApiErrorMessage(err) });
       } finally {
@@ -75,32 +116,16 @@ const Books = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [page, debouncedQ, selectedCategory]);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    rows.forEach((r) => {
-      if (r.category_name) {
-        set.add(r.category_name);
-      }
-    });
-    return ["All Categories", ...Array.from(set)];
-  }, [rows]);
+  const totalPages = useMemo(
+    () => (total === 0 ? 1 : Math.ceil(total / PAGE_SIZE)),
+    [total]
+  );
 
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return rows.filter((r) => {
-      const matchCategory =
-        selectedCategory === "All Categories" || r.category_name === selectedCategory;
-      const matchSearch =
-        !s ||
-        r.book_name.toLowerCase().includes(s) ||
-        r.author_name.toLowerCase().includes(s) ||
-        r.category_name.toLowerCase().includes(s) ||
-        r.place.toLowerCase().includes(s);
-      return matchCategory && matchSearch;
-    });
-  }, [rows, q, selectedCategory]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const columns = [
     { key: "book_name" as const, title: "Book Name" },
@@ -246,31 +271,36 @@ const Books = () => {
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-            viewMode === "grid"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-          }`}
-          onClick={() => setViewMode("grid")}
-        >
-          <LayoutGrid className="h-4 w-4" />
-          Grid
-        </button>
-        <button
-          type="button"
-          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-            viewMode === "list"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-          }`}
-          onClick={() => setViewMode("list")}
-        >
-          <List className="h-4 w-4" />
-          List
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+              viewMode === "grid"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+            }`}
+            onClick={() => setViewMode("grid")}
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Grid
+          </button>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+              viewMode === "list"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+            }`}
+            onClick={() => setViewMode("list")}
+          >
+            <List className="h-4 w-4" />
+            List
+          </button>
+        </div>
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          {total.toLocaleString()} books
+        </p>
       </div>
 
       <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}>
@@ -287,7 +317,7 @@ const Books = () => {
               </div>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-8 text-center text-sm text-slate-500 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
             No books found in this category.
           </div>
@@ -296,14 +326,24 @@ const Books = () => {
             layout
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
           >
-            {filtered.map((row) => (
+            {rows.map((row) => (
               <BookCard key={row.id} row={row} />
             ))}
           </motion.div>
         ) : (
-          <Table<BookRow> columns={columns} data={filtered} emptyMessage="No books found in this category." />
+          <Table<BookRow> columns={columns} data={rows} emptyMessage="No books found in this category." />
         )}
       </motion.div>
+
+      {!loading && total > 0 && (
+        <TablePagination
+          page={page}
+          limit={PAGE_SIZE}
+          total={total}
+          onPageChange={setPage}
+          onLimitChange={() => undefined}
+        />
+      )}
     </div>
   );
 };

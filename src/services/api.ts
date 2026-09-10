@@ -120,6 +120,7 @@ type ApiEnvelope<T = unknown> = {
     limit?: number;
     total?: number;
     totalPages?: number;
+    hasMore?: boolean;
   };
 };
 
@@ -497,6 +498,7 @@ export type BookItem = {
   place: string;
   author_name: string;
   category_name: string;
+  available: boolean;
 };
 
 export type AuthorOption = { author_id: number; author_name: string; country: string };
@@ -512,6 +514,7 @@ function normalizeBook(raw: unknown): BookItem | null {
 
   const authorObj = (r.author ?? {}) as Record<string, unknown>;
   const categoryObj = (r.category ?? {}) as Record<string, unknown>;
+  const availableRaw = r.available;
   return {
     book_id: id,
     book_name: bookName,
@@ -522,7 +525,8 @@ function normalizeBook(raw: unknown): BookItem | null {
     cover_image: String(r.coverImage ?? r.cover_image ?? ""),
     place: String(r.place ?? ""),
     author_name: String(authorObj.authorName ?? authorObj.author_name ?? ""),
-    category_name: String(categoryObj.categoryName ?? categoryObj.category_name ?? "")
+    category_name: String(categoryObj.categoryName ?? categoryObj.category_name ?? ""),
+    available: typeof availableRaw === "boolean" ? availableRaw : true
   };
 }
 
@@ -546,6 +550,38 @@ export async function getBooks(): Promise<BookItem[]> {
   const { data } = await api.get<ApiEnvelope<unknown[]>>("/books");
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeBook).filter((x): x is BookItem => x !== null);
+}
+
+export async function getBooksPage(options?: {
+  page?: number;
+  limit?: number;
+  q?: string;
+  category?: string;
+  available?: boolean | "true" | "false";
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+}): Promise<{ items: BookItem[]; page: number; limit: number; total: number; totalPages: number; hasMore: boolean }> {
+  const params: Record<string, string | number | boolean> = { paged: "true" };
+  if (options?.page) params.page = options.page;
+  if (options?.limit) params.limit = options.limit;
+  if (options?.q) params.q = options.q;
+  if (options?.category) params.category = options.category;
+  if (options?.available !== undefined) params.available = options.available;
+  if (options?.sortBy) params.sortBy = options.sortBy;
+  if (options?.sortDir) params.sortDir = options.sortDir;
+
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/books", { params });
+  const rows = Array.isArray(data.data) ? data.data : [];
+  const items = rows.map(normalizeBook).filter((x): x is BookItem => x !== null);
+  const page = Math.max(1, Number(data.meta?.page ?? options?.page ?? 1));
+  const limit = Math.max(1, Number(data.meta?.limit ?? options?.limit ?? 40));
+  const total = Math.max(0, Number(data.meta?.total ?? items.length));
+  const totalPages = Math.max(1, Number(data.meta?.totalPages ?? Math.ceil(total / limit) || 1));
+  const hasMore =
+    typeof (data.meta as { hasMore?: boolean } | undefined)?.hasMore === "boolean"
+      ? Boolean((data.meta as { hasMore?: boolean }).hasMore)
+      : page < totalPages;
+  return { items, page, limit, total, totalPages, hasMore };
 }
 
 export async function getBookById(bookId: number): Promise<BookItem> {

@@ -35,6 +35,19 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const list = asyncHandler(async (req, res) => {
+  const paged = ['1', 'true', 'yes'].includes(String(req.query.paged ?? '').toLowerCase());
+  if (paged) {
+    const result = await bookService.findPage({
+      page: req.query.page,
+      limit: req.query.limit,
+      q: req.query.q,
+      category: req.query.category,
+      available: req.query.available,
+      sortBy: req.query.sortBy ?? req.query.sort,
+      sortDir: req.query.sortDir ?? req.query.order,
+    });
+    return success(res, { data: result.data, meta: result.pagination });
+  }
   const rows = await bookService.findAll();
   return success(res, { data: rows });
 });

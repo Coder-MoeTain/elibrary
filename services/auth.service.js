@@ -1,6 +1,8 @@
-const { Admin, User } = require('../models');
+const { Op } = require('sequelize');
+const { Admin, User, Department } = require('../models');
 const { comparePassword } = require('../helpers/password.helper');
 const { signToken } = require('../helpers/jwt.helper');
+const { verifyGoogleIdToken } = require('../helpers/googleAuth.helper');
 const { ROLES, MESSAGES, USER_STATUS, ADMIN_TIER } = require('../constants');
 const AppError = require('../utils/AppError');
 const { HTTP_STATUS } = require('../constants');
@@ -19,7 +21,7 @@ async function adminLogin(adminName, password) {
 
 async function userLogin(userName, password) {
   const user = await User.unscoped().findOne({ where: { userName, isDeleted: false } });
-  if (!user || !(await comparePassword(password, user.password))) {
+  if (!user || !user.password || !(await comparePassword(password, user.password))) {
     throw new AppError(MESSAGES.INVALID_CREDENTIALS, HTTP_STATUS.UNAUTHORIZED);
   }
   if (user.status === USER_STATUS.PENDING) {
@@ -34,7 +36,115 @@ async function userLogin(userName, password) {
   return { token, user: json };
 }
 
+function memberTokenPayload(user) {
+  const json = user.toJSON();
+  delete json.password;
+  return {
+    token: signToken({ userId: user.usersId, role: ROLES.MEMBER }),
+    user: json,
+    status: USER_STATUS.APPROVED,
+  };
+}
+
+async function uniqueUserNameFromGoogle({ email, name }) {
+  const base =
+    String(name || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .slice(0, 200) ||
+    String(email).split('@')[0] ||
+    'member';
+
+  let candidate = base.slice(0, 255);
+  for (let i = 0; i < 50; i += 1) {
+    const existing = await User.unscoped().findOne({
+      where: { userName: candidate, isDeleted: false },
+    });
+    if (!existing) return candidate;
+    const suffix = `-${i + 1}`;
+    candidate = `${base.slice(0, 255 - suffix.length)}${suffix}`;
+  }
+  return `${base.slice(0, 200)}-${Date.now()}`;
+}
+
+/**
+ * Google Sign-In for members.
+ * - Existing APPROVED → JWT
+ * - Existing PENDING / REJECTED → error
+ * - New without departmentId → NEEDS_DEPARTMENT
+ * - New with departmentId → create PENDING (no JWT)
+ */
+async function googleSignIn({ idToken, departmentId }) {
+  const profile = await verifyGoogleIdToken(idToken);
+  const email = profile.email;
+
+  const existing = await User.unscoped().findOne({
+    where: { email, isDeleted: false },
+  });
+
+  if (existing) {
+    if (existing.status === USER_STATUS.PENDING) {
+      throw new AppError(MESSAGES.USER_NOT_APPROVED, HTTP_STATUS.UNAUTHORIZED, null, {
+        status: USER_STATUS.PENDING,
+      });
+    }
+    if (existing.status === USER_STATUS.REJECTED) {
+      throw new AppError(MESSAGES.USER_REJECTED, HTTP_STATUS.UNAUTHORIZED, null, {
+        status: USER_STATUS.REJECTED,
+      });
+    }
+    return memberTokenPayload(existing);
+  }
+
+  const parsedDepartmentId =
+    departmentId === undefined || departmentId === null || departmentId === ''
+      ? null
+      : Number.parseInt(String(departmentId), 10);
+
+  if (!Number.isInteger(parsedDepartmentId) || parsedDepartmentId < 1) {
+    return {
+      status: 'NEEDS_DEPARTMENT',
+      email,
+      name: profile.name || null,
+    };
+  }
+
+  const department = await Department.findByPk(parsedDepartmentId);
+  if (!department) {
+    throw new AppError(MESSAGES.INVALID_DEPARTMENT, HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const conflict = await User.unscoped().findOne({
+    where: {
+      [Op.and]: [{ [Op.or]: [{ email }, { userName: email }] }, { isDeleted: false }],
+    },
+  });
+  if (conflict) {
+    throw new AppError(MESSAGES.USER_ALREADY_EXISTS, HTTP_STATUS.CONFLICT);
+  }
+
+  const userName = await uniqueUserNameFromGoogle({ email, name: profile.name });
+  const row = await User.create({
+    userName,
+    email,
+    password: null,
+    dateOfBirth: null,
+    department_department_id: parsedDepartmentId,
+    status: USER_STATUS.PENDING,
+  });
+
+  const created = await User.findByPk(row.usersId, { include: ['department'] });
+  const json = created.toJSON();
+  delete json.password;
+
+  return {
+    status: USER_STATUS.PENDING,
+    user: json,
+  };
+}
+
 module.exports = {
   adminLogin,
   userLogin,
+  googleSignIn,
 };

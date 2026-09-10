@@ -11,5 +11,6 @@ router.use(authLimiter);
 router.post('/admin/login', authValidation.adminLogin, validate, authController.adminLogin);
 router.post('/user/login', authValidation.userLogin, validate, authController.userLogin);
 router.post('/register', authValidation.register, validate, authController.register);
+router.post('/google', authValidation.googleSignIn, validate, authController.googleSignIn);
 
 module.exports = router;

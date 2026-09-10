@@ -16,6 +16,7 @@ const uploadsPath = path.join(__dirname, 'public', 'uploads');
 const coversPath = path.join(uploadsPath, 'covers');
 const booksCoversPath = path.join(uploadsPath, 'books', 'covers');
 const coverThumbsPath = path.join(coversPath, '.thumbs');
+const bookCoverThumbsPath = path.join(booksCoversPath, '.thumbs');
 
 /**
  * Set USE_HTTPS=true when the app is only served over HTTPS (nginx TLS or USE_TLS).
@@ -85,7 +86,7 @@ function sanitizeFileSegment(raw) {
   return base;
 }
 
-app.get('/uploads/covers/:file', async (req, res, next) => {
+async function serveCoverThumb(req, res, next, { sourceDir, thumbsDir }) {
   try {
     const enableThumb = ['1', 'true', 'yes'].includes(String(req.query.thumb ?? '').toLowerCase());
     if (!enableThumb) return next();
@@ -93,13 +94,13 @@ app.get('/uploads/covers/:file', async (req, res, next) => {
     const fileName = sanitizeFileSegment(req.params.file);
     if (!fileName) return next();
 
-    const source = path.join(coversPath, fileName);
+    const source = path.join(sourceDir, fileName);
     if (!fs.existsSync(source)) return next();
 
     const w = Math.min(640, Math.max(80, Number(req.query.w) || 220));
     const q = Math.min(95, Math.max(40, Number(req.query.q) || 70));
     const cacheName = `${w}-${q}-${fileName.replace(/\.[^.]+$/, '')}.jpg`;
-    const cachedThumb = path.join(coverThumbsPath, cacheName);
+    const cachedThumb = path.join(thumbsDir, cacheName);
 
     if (fs.existsSync(cachedThumb)) {
       res.setHeader('Content-Type', 'image/jpeg');
@@ -107,7 +108,7 @@ app.get('/uploads/covers/:file', async (req, res, next) => {
       return res.sendFile(cachedThumb);
     }
 
-    await fs.promises.mkdir(coverThumbsPath, { recursive: true });
+    await fs.promises.mkdir(thumbsDir, { recursive: true });
     const image = await loadImage(source);
     const srcW = Math.max(1, image.width || w);
     const srcH = Math.max(1, image.height || Math.round((w * 3) / 2));
@@ -125,7 +126,18 @@ app.get('/uploads/covers/:file', async (req, res, next) => {
   } catch {
     return next();
   }
-});
+}
+
+app.get('/uploads/covers/:file', (req, res, next) =>
+  serveCoverThumb(req, res, next, { sourceDir: coversPath, thumbsDir: coverThumbsPath }),
+);
+
+app.get('/uploads/books/covers/:file', (req, res, next) =>
+  serveCoverThumb(req, res, next, {
+    sourceDir: booksCoversPath,
+    thumbsDir: bookCoverThumbsPath,
+  }),
+);
 
 /** Public cover images only — eBook PDFs require authenticated /api/ebooks/:id/pdf */
 app.use('/uploads/covers', express.static(coversPath, { setHeaders: setUploadCacheHeaders }));

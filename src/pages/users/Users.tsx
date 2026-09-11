@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { ChevronDown, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import DatePicker from "../../components/ui/DatePicker";
 import Input from "../../components/ui/Input";
@@ -47,6 +48,14 @@ type Toast = { kind: "success" | "error" | "warning"; message: string } | null;
 
 type StatusFilterValue = "all" | "PENDING" | "APPROVED" | "REJECTED";
 
+function parseStatusFilter(raw: string | null): StatusFilterValue {
+  const value = String(raw || "").trim().toUpperCase();
+  if (value === "PENDING" || value === "APPROVED" || value === "REJECTED") {
+    return value;
+  }
+  return "all";
+}
+
 const STATUS_FILTER_OPTIONS: {
   value: Exclude<StatusFilterValue, "all">;
   label: string;
@@ -68,12 +77,15 @@ const actionClass =
   "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700";
 
 const Users = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>(() =>
+    parseStatusFilter(searchParams.get("status")),
+  );
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const statusHeaderRef = useRef<HTMLDivElement>(null);
   const [openForm, setOpenForm] = useState(false);
@@ -117,6 +129,23 @@ const Users = () => {
   useEffect(() => {
     void fetchDepartments();
   }, []);
+
+  useEffect(() => {
+    setStatusFilter(parseStatusFilter(searchParams.get("status")));
+  }, [searchParams]);
+
+  const applyStatusFilter = (value: StatusFilterValue) => {
+    setStatusFilter(value);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value === "all") next.delete("status");
+        else next.set("status", value);
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   useEffect(() => {
     if (!statusMenuOpen) return;
@@ -241,7 +270,7 @@ const Users = () => {
                   : "text-slate-700 dark:text-slate-200"
               }`}
               onClick={() => {
-                setStatusFilter(value);
+                applyStatusFilter(value);
                 setStatusMenuOpen(false);
               }}
             >
@@ -254,7 +283,7 @@ const Users = () => {
                 type="button"
                 className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/80 dark:hover:text-slate-200"
                 onClick={() => {
-                  setStatusFilter("all");
+                  applyStatusFilter("all");
                   setStatusMenuOpen(false);
                 }}
               >

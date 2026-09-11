@@ -1,15 +1,18 @@
-import { Clock, LogOut, Menu, Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Bell, Clock, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Button from "../ui/Button";
 import { getLoginPathForRole } from "../../config/authPaths";
 import { useAuth } from "../../context/AuthContext";
 import { useTimezone } from "../../context/TimezoneContext";
+import { getUsers } from "../../services/api";
 import { getAdminTier } from "../../utils/auth";
 
 type NavbarProps = {
   onToggleSidebar: () => void;
 };
+
+const PENDING_POLL_MS = 30_000;
 
 const Navbar = ({ onToggleSidebar }: NavbarProps) => {
   const { darkMode, toggleTheme, logout, role } = useAuth();
@@ -17,18 +20,52 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isMemberPanel = location.pathname.startsWith("/member");
+  const isAdminPanel = role === "admin" && !isMemberPanel;
   const adminTier = role === "admin" ? getAdminTier() : null;
   const [clock, setClock] = useState(() => formatClock());
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     const tick = window.setInterval(() => setClock(formatClock()), 1000);
     return () => window.clearInterval(tick);
   }, [formatClock]);
 
+  const refreshPendingCount = useCallback(async () => {
+    if (!isAdminPanel) {
+      setPendingCount(0);
+      return;
+    }
+    try {
+      const rows = await getUsers(false);
+      const count = rows.filter(
+        (u) => String(u.status || "").toUpperCase() === "PENDING" && !u.isDeleted,
+      ).length;
+      setPendingCount(count);
+    } catch {
+      // Keep last known count; avoid noisy toasts in the header.
+    }
+  }, [isAdminPanel]);
+
+  useEffect(() => {
+    if (!isAdminPanel) return;
+    void refreshPendingCount();
+    const poll = window.setInterval(() => void refreshPendingCount(), PENDING_POLL_MS);
+    const onFocus = () => void refreshPendingCount();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [isAdminPanel, refreshPendingCount, location.pathname]);
+
   const handleLogout = () => {
     const loginPath = getLoginPathForRole(role);
     logout();
     navigate(loginPath, { replace: true });
+  };
+
+  const handlePendingNotifications = () => {
+    navigate("/admin/users?status=PENDING");
   };
 
   return (
@@ -68,15 +105,38 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
         </div>
       </div>
 
-      <div
-        className="hidden min-w-[9.5rem] items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-white md:flex"
-        title={`${timezone} ${offset}`}
-      >
-        <Clock className="h-4 w-4 shrink-0 text-white/80" aria-hidden />
-        <div className="min-w-0">
-          <p className="truncate font-mono text-xs font-semibold leading-tight">{clock}</p>
-          <p className="truncate text-[10px] text-white/70">{timezone.replace(/_/g, " ")}</p>
+      <div className="flex items-center gap-2">
+        <div
+          className="hidden min-w-[9.5rem] items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-white md:flex"
+          title={`${timezone} ${offset}`}
+        >
+          <Clock className="h-4 w-4 shrink-0 text-white/80" aria-hidden />
+          <div className="min-w-0">
+            <p className="truncate font-mono text-xs font-semibold leading-tight">{clock}</p>
+            <p className="truncate text-[10px] text-white/70">{timezone.replace(/_/g, " ")}</p>
+          </div>
         </div>
+
+        {isAdminPanel && (
+          <button
+            type="button"
+            onClick={handlePendingNotifications}
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/25 text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            aria-label={
+              pendingCount > 0
+                ? `${pendingCount} pending user${pendingCount === 1 ? "" : "s"}`
+                : "Pending user requests"
+            }
+            title="Pending user requests"
+          >
+            <Bell className="h-5 w-5" />
+            {pendingCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm">
+                {pendingCount > 99 ? "99+" : pendingCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       <button

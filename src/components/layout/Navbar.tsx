@@ -13,6 +13,27 @@ type NavbarProps = {
 };
 
 const PENDING_POLL_MS = 30_000;
+const SEEN_PENDING_KEY = "admin_seen_pending_user_ids";
+
+function readSeenPendingIds(): Set<number> {
+  try {
+    const raw = localStorage.getItem(SEEN_PENDING_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(
+      parsed
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function writeSeenPendingIds(ids: Iterable<number>) {
+  localStorage.setItem(SEEN_PENDING_KEY, JSON.stringify([...ids]));
+}
 
 const Navbar = ({ onToggleSidebar }: NavbarProps) => {
   const { darkMode, toggleTheme, logout, role } = useAuth();
@@ -23,7 +44,8 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
   const isAdminPanel = role === "admin" && !isMemberPanel;
   const adminTier = role === "admin" ? getAdminTier() : null;
   const [clock, setClock] = useState(() => formatClock());
-  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingIds, setPendingIds] = useState<number[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const tick = window.setInterval(() => setClock(formatClock()), 1000);
@@ -32,15 +54,26 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
 
   const refreshPendingCount = useCallback(async () => {
     if (!isAdminPanel) {
-      setPendingCount(0);
+      setPendingIds([]);
+      setUnreadCount(0);
       return;
     }
     try {
       const rows = await getUsers(false);
-      const count = rows.filter(
-        (u) => String(u.status || "").toUpperCase() === "PENDING" && !u.isDeleted,
-      ).length;
-      setPendingCount(count);
+      const ids = rows
+        .filter(
+          (u) => String(u.status || "").toUpperCase() === "PENDING" && !u.isDeleted,
+        )
+        .map((u) => u.usersId);
+      const seen = readSeenPendingIds();
+      // Drop seen ids that are no longer pending (approved/rejected).
+      const stillRelevant = new Set(ids.filter((id) => seen.has(id)));
+      if (stillRelevant.size !== seen.size) {
+        writeSeenPendingIds(stillRelevant);
+      }
+      const unread = ids.filter((id) => !stillRelevant.has(id)).length;
+      setPendingIds(ids);
+      setUnreadCount(unread);
     } catch {
       // Keep last known count; avoid noisy toasts in the header.
     }
@@ -65,6 +98,9 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
   };
 
   const handlePendingNotifications = () => {
+    // Mark current pending requests as read so the badge clears.
+    writeSeenPendingIds(pendingIds);
+    setUnreadCount(0);
     navigate("/admin/users?status=PENDING");
   };
 
@@ -123,16 +159,16 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
             onClick={handlePendingNotifications}
             className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/25 text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             aria-label={
-              pendingCount > 0
-                ? `${pendingCount} pending user${pendingCount === 1 ? "" : "s"}`
+              unreadCount > 0
+                ? `${unreadCount} unread pending request${unreadCount === 1 ? "" : "s"}`
                 : "Pending user requests"
             }
             title="Pending user requests"
           >
             <Bell className="h-5 w-5" />
-            {pendingCount > 0 && (
+            {unreadCount > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm">
-                {pendingCount > 99 ? "99+" : pendingCount}
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </button>

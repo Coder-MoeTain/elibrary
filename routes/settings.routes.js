@@ -28,6 +28,12 @@ const router = Router();
 
 router.get('/', authenticate, settingsController.get);
 router.put('/timezone', authenticate, requireAdmin, settingsController.updateTimezone);
+router.put(
+  '/google-join-approval',
+  authenticate,
+  requireAdmin,
+  settingsController.updateGoogleJoinApproval
+);
 
 router.get('/backups', authenticate, requireSuperAdmin, settingsController.listBackups);
 router.post('/backups', authenticate, requireSuperAdmin, settingsController.createBackup);

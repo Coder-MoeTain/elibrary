@@ -23,6 +23,9 @@ const { HTTP_STATUS } = require('../constants');
 
 const BACKUP_DIR = path.join(process.cwd(), 'backups');
 const MAX_BACKUPS = 30;
+/** When true, new Google Sign-In users are PENDING until admin Accept. When false, they join as APPROVED. */
+const GOOGLE_JOIN_REQUIRE_APPROVAL_KEY = 'google_join_require_approval';
+const GOOGLE_JOIN_REQUIRE_APPROVAL_DEFAULT = true;
 
 function currentDb() {
   const env = (process.env.NODE_ENV || 'development').trim();
@@ -54,14 +57,37 @@ async function getTimezone() {
   return normalizeTimezone(await getSetting('timezone', DEFAULT_TIMEZONE));
 }
 
+function parseBoolSetting(raw, fallback) {
+  const value = String(raw ?? '').trim().toLowerCase();
+  if (value === '1' || value === 'true' || value === 'yes' || value === 'on') return true;
+  if (value === '0' || value === 'false' || value === 'no' || value === 'off') return false;
+  return fallback;
+}
+
+async function getGoogleJoinRequireApproval() {
+  const raw = await getSetting(
+    GOOGLE_JOIN_REQUIRE_APPROVAL_KEY,
+    GOOGLE_JOIN_REQUIRE_APPROVAL_DEFAULT ? 'true' : 'false'
+  );
+  return parseBoolSetting(raw, GOOGLE_JOIN_REQUIRE_APPROVAL_DEFAULT);
+}
+
+async function updateGoogleJoinRequireApproval(enabled) {
+  const next = Boolean(enabled);
+  await setSetting(GOOGLE_JOIN_REQUIRE_APPROVAL_KEY, next ? 'true' : 'false');
+  return getPublicSettings();
+}
+
 async function getPublicSettings() {
   const timezone = await getTimezone();
+  const googleJoinRequireApproval = await getGoogleJoinRequireApproval();
   return {
     timezone,
     offset: offsetLabel(timezone),
     now: formatDateTime(new Date(), timezone),
     today: calendarDate(timezone),
     groups: TIMEZONE_GROUPS,
+    googleJoinRequireApproval,
   };
 }
 
@@ -265,6 +291,8 @@ module.exports = {
   getTimezone,
   getPublicSettings,
   updateTimezone,
+  getGoogleJoinRequireApproval,
+  updateGoogleJoinRequireApproval,
   syncMysqlTimezone,
   createBackup,
   listBackups,

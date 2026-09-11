@@ -14,6 +14,20 @@ const updateTimezone = asyncHandler(async (req, res) => {
   return success(res, { data, message: 'Timezone updated' });
 });
 
+const updateGoogleJoinApproval = asyncHandler(async (req, res) => {
+  const raw = req.body?.googleJoinRequireApproval ?? req.body?.enabled;
+  if (typeof raw !== 'boolean') {
+    throw new AppError('googleJoinRequireApproval must be true or false.', HTTP_STATUS.BAD_REQUEST);
+  }
+  const data = await settingsService.updateGoogleJoinRequireApproval(raw);
+  return success(res, {
+    data,
+    message: raw
+      ? 'New Google sign-ins will stay pending until approved'
+      : 'New Google sign-ins can join immediately',
+  });
+});
+
 const createBackup = asyncHandler(async (req, res) => {
   const data = await settingsService.createBackup();
   return success(res, { data, message: 'Backup created' });
@@ -52,6 +66,7 @@ const removeBackup = asyncHandler(async (req, res) => {
 module.exports = {
   get,
   updateTimezone,
+  updateGoogleJoinApproval,
   createBackup,
   listBackups,
   downloadBackup,

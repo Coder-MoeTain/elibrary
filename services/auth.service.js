@@ -71,9 +71,10 @@ async function uniqueUserNameFromGoogle({ email, name }) {
  * Google Sign-In for members.
  * - Existing APPROVED → JWT
  * - Existing PENDING / REJECTED → error
- * - New → create PENDING (no JWT); department left empty for admin
+ * - New → PENDING (if require-approval setting on) or APPROVED + JWT (if off)
  */
 async function googleSignIn({ idToken }) {
+  const settingsService = require('./settings.service');
   const profile = await verifyGoogleIdToken(idToken);
   const email = profile.email;
 
@@ -104,6 +105,9 @@ async function googleSignIn({ idToken }) {
     throw new AppError(MESSAGES.USER_ALREADY_EXISTS, HTTP_STATUS.CONFLICT);
   }
 
+  const requireApproval = await settingsService.getGoogleJoinRequireApproval();
+  const status = requireApproval ? USER_STATUS.PENDING : USER_STATUS.APPROVED;
+
   const userName = await uniqueUserNameFromGoogle({ email, name: profile.name });
   const row = await User.create({
     userName,
@@ -111,7 +115,7 @@ async function googleSignIn({ idToken }) {
     password: null,
     dateOfBirth: null,
     department_department_id: null,
-    status: USER_STATUS.PENDING,
+    status,
   });
 
   // Avoid INNER JOIN dropping the row when department is null; defaultScope can also
@@ -124,6 +128,10 @@ async function googleSignIn({ idToken }) {
       })) || row;
   } catch {
     created = row;
+  }
+
+  if (status === USER_STATUS.APPROVED) {
+    return memberTokenPayload(created);
   }
 
   const json = created.toJSON();

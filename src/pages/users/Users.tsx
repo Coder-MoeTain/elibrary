@@ -22,10 +22,12 @@ import {
   deleteUser,
   DepartmentItem,
   getApiErrorMessage,
+  getAppSettings,
   getDepartmentList,
   getUsers,
   isAxiosConflict,
   rejectUser,
+  updateGoogleJoinRequireApproval,
   updateUser,
   UserItem,
   UserPayload,
@@ -96,6 +98,8 @@ const Users = () => {
   const [form, setForm] = useState(emptyForm);
   const [toast, setToast] = useState<Toast>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [googlePendingMode, setGooglePendingMode] = useState(true);
+  const [savingGoogleMode, setSavingGoogleMode] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -131,6 +135,21 @@ const Users = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const settings = await getAppSettings();
+        if (!cancelled) setGooglePendingMode(settings.googleJoinRequireApproval);
+      } catch {
+        // Keep default (pending mode on).
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     setStatusFilter(parseStatusFilter(searchParams.get("status")));
   }, [searchParams]);
 
@@ -145,6 +164,27 @@ const Users = () => {
       },
       { replace: true },
     );
+  };
+
+  const onToggleGooglePendingMode = async (next: boolean) => {
+    const previous = googlePendingMode;
+    setGooglePendingMode(next);
+    try {
+      setSavingGoogleMode(true);
+      const settings = await updateGoogleJoinRequireApproval(next);
+      setGooglePendingMode(settings.googleJoinRequireApproval);
+      setToast({
+        kind: "success",
+        message: settings.googleJoinRequireApproval
+          ? "Google pending mode ON — new Google users need Accept."
+          : "Google pending mode OFF — new Google users can join immediately.",
+      });
+    } catch (err) {
+      setGooglePendingMode(previous);
+      setToast({ kind: "error", message: getApiErrorMessage(err) });
+    } finally {
+      setSavingGoogleMode(false);
+    }
   };
 
   useEffect(() => {
@@ -546,6 +586,40 @@ const Users = () => {
         title="Users Management"
         actions={
           <div className="flex flex-wrap items-center gap-3">
+            <div
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 dark:border-slate-600 dark:bg-slate-800"
+              title={
+                googlePendingMode
+                  ? "ON: new Google sign-ins stay PENDING until Accept"
+                  : "OFF: new Google sign-ins join as APPROVED"
+              }
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  Google pending
+                </p>
+                <p className="hidden text-[10px] text-slate-500 sm:block dark:text-slate-400">
+                  {googlePendingMode ? "New joins need approval" : "New joins auto-approved"}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={googlePendingMode}
+                aria-label="Google pending mode"
+                disabled={savingGoogleMode}
+                onClick={() => void onToggleGooglePendingMode(!googlePendingMode)}
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:opacity-60 ${
+                  googlePendingMode ? "bg-primary" : "bg-slate-300 dark:bg-slate-600"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition ${
+                    googlePendingMode ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
             <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
               <input
                 type="checkbox"

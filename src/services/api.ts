@@ -1498,6 +1498,8 @@ export type AppSettings = {
   now: string;
   today: string;
   groups: TimezoneGroup[];
+  /** When true, new Google Sign-In users stay PENDING until admin Accept. */
+  googleJoinRequireApproval: boolean;
 };
 
 export type BackupFile = {
@@ -1508,12 +1510,17 @@ export type BackupFile = {
 
 function unwrapSettings(raw: unknown): AppSettings {
   const r = (raw ?? {}) as Record<string, unknown>;
+  const approvalRaw = r.googleJoinRequireApproval ?? r.google_join_require_approval;
   return {
     timezone: String(r.timezone ?? "Asia/Yangon"),
     offset: String(r.offset ?? ""),
     now: String(r.now ?? ""),
     today: String(r.today ?? ""),
-    groups: Array.isArray(r.groups) ? (r.groups as TimezoneGroup[]) : []
+    groups: Array.isArray(r.groups) ? (r.groups as TimezoneGroup[]) : [],
+    googleJoinRequireApproval:
+      approvalRaw === true ||
+      approvalRaw === 1 ||
+      String(approvalRaw ?? "true").toLowerCase() === "true",
   };
 }
 
@@ -1524,6 +1531,15 @@ export async function getAppSettings(): Promise<AppSettings> {
 
 export async function updateAppTimezone(timezone: string): Promise<AppSettings> {
   const { data } = await api.put<ApiEnvelope<unknown>>("/settings/timezone", { timezone });
+  return unwrapSettings(data.data);
+}
+
+export async function updateGoogleJoinRequireApproval(
+  googleJoinRequireApproval: boolean,
+): Promise<AppSettings> {
+  const { data } = await api.put<ApiEnvelope<unknown>>("/settings/google-join-approval", {
+    googleJoinRequireApproval,
+  });
   return unwrapSettings(data.data);
 }
 

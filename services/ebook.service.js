@@ -545,12 +545,11 @@ async function findPage(options = {}) {
   }
 
   if (q) {
-    const like = `%${String(q).replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+    // Keep search on main table fields — association Op.or breaks on some MySQL/Sequelize setups.
+    const like = `%${q}%`;
     where[Op.or] = [
       { eBookName: { [Op.like]: like } },
       { description: { [Op.like]: like } },
-      { '$author.authorName$': { [Op.like]: like } },
-      { '$category.categoryName$': { [Op.like]: like } },
     ];
   }
 

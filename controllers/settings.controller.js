@@ -28,6 +28,11 @@ const updateGoogleJoinApproval = asyncHandler(async (req, res) => {
   });
 });
 
+const clearUserJoinNotices = asyncHandler(async (req, res) => {
+  const data = await settingsService.clearUnseenAutoJoinNotices();
+  return success(res, { data, message: 'Join notifications cleared' });
+});
+
 const createBackup = asyncHandler(async (req, res) => {
   const data = await settingsService.createBackup();
   return success(res, { data, message: 'Backup created' });
@@ -67,6 +72,7 @@ module.exports = {
   get,
   updateTimezone,
   updateGoogleJoinApproval,
+  clearUserJoinNotices,
   createBackup,
   listBackups,
   downloadBackup,

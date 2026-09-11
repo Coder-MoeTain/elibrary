@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         field: 'setting_key',
       },
       settingValue: {
-        type: DataTypes.STRING(255),
+        type: DataTypes.TEXT,
         allowNull: false,
         defaultValue: '',
         field: 'setting_value',

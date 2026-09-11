@@ -26,6 +26,9 @@ const MAX_BACKUPS = 30;
 /** When true, new Google Sign-In users are PENDING until admin Accept. When false, they join as APPROVED. */
 const GOOGLE_JOIN_REQUIRE_APPROVAL_KEY = 'google_join_require_approval';
 const GOOGLE_JOIN_REQUIRE_APPROVAL_DEFAULT = true;
+/** JSON array of user IDs that auto-joined (mode OFF) and have not been acknowledged by admin. */
+const UNSEEN_AUTO_JOIN_IDS_KEY = 'unseen_auto_join_user_ids';
+const MAX_UNSEEN_AUTO_JOINS = 200;
 
 function currentDb() {
   const env = (process.env.NODE_ENV || 'development').trim();
@@ -78,9 +81,45 @@ async function updateGoogleJoinRequireApproval(enabled) {
   return getPublicSettings();
 }
 
+function parseIdList(raw) {
+  try {
+    const parsed = JSON.parse(String(raw || '[]'));
+    if (!Array.isArray(parsed)) return [];
+    return [
+      ...new Set(
+        parsed
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id) && id > 0),
+      ),
+    ];
+  } catch {
+    return [];
+  }
+}
+
+async function getUnseenAutoJoinIds() {
+  return parseIdList(await getSetting(UNSEEN_AUTO_JOIN_IDS_KEY, '[]'));
+}
+
+async function enqueueAutoJoinNotice(userId) {
+  const id = Number(userId);
+  if (!Number.isFinite(id) || id < 1) return getUnseenAutoJoinIds();
+  const ids = await getUnseenAutoJoinIds();
+  if (!ids.includes(id)) ids.push(id);
+  const trimmed = ids.slice(-MAX_UNSEEN_AUTO_JOINS);
+  await setSetting(UNSEEN_AUTO_JOIN_IDS_KEY, JSON.stringify(trimmed));
+  return trimmed;
+}
+
+async function clearUnseenAutoJoinNotices() {
+  await setSetting(UNSEEN_AUTO_JOIN_IDS_KEY, '[]');
+  return getPublicSettings();
+}
+
 async function getPublicSettings() {
   const timezone = await getTimezone();
   const googleJoinRequireApproval = await getGoogleJoinRequireApproval();
+  const unseenAutoJoinIds = await getUnseenAutoJoinIds();
   return {
     timezone,
     offset: offsetLabel(timezone),
@@ -88,6 +127,8 @@ async function getPublicSettings() {
     today: calendarDate(timezone),
     groups: TIMEZONE_GROUPS,
     googleJoinRequireApproval,
+    unseenAutoJoinIds,
+    unseenAutoJoinCount: unseenAutoJoinIds.length,
   };
 }
 
@@ -293,6 +334,9 @@ module.exports = {
   updateTimezone,
   getGoogleJoinRequireApproval,
   updateGoogleJoinRequireApproval,
+  getUnseenAutoJoinIds,
+  enqueueAutoJoinNotice,
+  clearUnseenAutoJoinNotices,
   syncMysqlTimezone,
   createBackup,
   listBackups,

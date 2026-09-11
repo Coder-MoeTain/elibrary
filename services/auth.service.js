@@ -111,6 +111,7 @@ async function googleSignIn({ idToken }) {
         };
       }
       await existing.update({ status: USER_STATUS.APPROVED });
+      await settingsService.enqueueAutoJoinNotice(existing.usersId);
       return memberTokenPayload(existing);
     }
     return memberTokenPayload(existing);
@@ -151,6 +152,7 @@ async function googleSignIn({ idToken }) {
   }
 
   if (status === USER_STATUS.APPROVED) {
+    await settingsService.enqueueAutoJoinNotice(created.usersId);
     return memberTokenPayload(created);
   }
 

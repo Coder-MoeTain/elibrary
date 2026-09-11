@@ -1500,6 +1500,9 @@ export type AppSettings = {
   groups: TimezoneGroup[];
   /** When true, new Google Sign-In users stay PENDING until admin Accept. */
   googleJoinRequireApproval: boolean;
+  /** Auto-approved Google joins (mode OFF) waiting for admin acknowledgement. */
+  unseenAutoJoinIds: number[];
+  unseenAutoJoinCount: number;
 };
 
 export type BackupFile = {
@@ -1511,6 +1514,17 @@ export type BackupFile = {
 function unwrapSettings(raw: unknown): AppSettings {
   const r = (raw ?? {}) as Record<string, unknown>;
   const approvalRaw = r.googleJoinRequireApproval ?? r.google_join_require_approval;
+  const joinIdsRaw = r.unseenAutoJoinIds ?? r.unseen_auto_join_ids;
+  const unseenAutoJoinIds = Array.isArray(joinIdsRaw)
+    ? [
+        ...new Set(
+          joinIdsRaw
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0),
+        ),
+      ]
+    : [];
+  const countRaw = Number(r.unseenAutoJoinCount ?? r.unseen_auto_join_count);
   return {
     timezone: String(r.timezone ?? "Asia/Yangon"),
     offset: String(r.offset ?? ""),
@@ -1521,6 +1535,8 @@ function unwrapSettings(raw: unknown): AppSettings {
       approvalRaw === true ||
       approvalRaw === 1 ||
       String(approvalRaw ?? "true").toLowerCase() === "true",
+    unseenAutoJoinIds,
+    unseenAutoJoinCount: Number.isFinite(countRaw) ? countRaw : unseenAutoJoinIds.length,
   };
 }
 
@@ -1540,6 +1556,11 @@ export async function updateGoogleJoinRequireApproval(
   const { data } = await api.put<ApiEnvelope<unknown>>("/settings/google-join-approval", {
     googleJoinRequireApproval,
   });
+  return unwrapSettings(data.data);
+}
+
+export async function clearUserJoinNotices(): Promise<AppSettings> {
+  const { data } = await api.post<ApiEnvelope<unknown>>("/settings/user-join-notices/read");
   return unwrapSettings(data.data);
 }
 

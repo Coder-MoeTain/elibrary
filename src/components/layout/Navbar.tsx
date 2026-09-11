@@ -5,7 +5,7 @@ import Button from "../ui/Button";
 import { getLoginPathForRole } from "../../config/authPaths";
 import { useAuth } from "../../context/AuthContext";
 import { useTimezone } from "../../context/TimezoneContext";
-import { getUsers } from "../../services/api";
+import { clearUserJoinNotices, getAppSettings, getUsers } from "../../services/api";
 import { getAdminTier } from "../../utils/auth";
 
 type NavbarProps = {
@@ -45,21 +45,25 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
   const adminTier = role === "admin" ? getAdminTier() : null;
   const [clock, setClock] = useState(() => formatClock());
   const [pendingIds, setPendingIds] = useState<number[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingUnread, setPendingUnread] = useState(0);
+  const [autoJoinUnread, setAutoJoinUnread] = useState(0);
+
+  const unreadCount = pendingUnread + autoJoinUnread;
 
   useEffect(() => {
     const tick = window.setInterval(() => setClock(formatClock()), 1000);
     return () => window.clearInterval(tick);
   }, [formatClock]);
 
-  const refreshPendingCount = useCallback(async () => {
+  const refreshNotificationCount = useCallback(async () => {
     if (!isAdminPanel) {
       setPendingIds([]);
-      setUnreadCount(0);
+      setPendingUnread(0);
+      setAutoJoinUnread(0);
       return;
     }
     try {
-      const rows = await getUsers(false);
+      const [rows, settings] = await Promise.all([getUsers(false), getAppSettings()]);
       const ids = rows
         .filter(
           (u) => String(u.status || "").toUpperCase() === "PENDING" && !u.isDeleted,
@@ -71,9 +75,10 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
       if (stillRelevant.size !== seen.size) {
         writeSeenPendingIds(stillRelevant);
       }
-      const unread = ids.filter((id) => !stillRelevant.has(id)).length;
+      const unreadPending = ids.filter((id) => !stillRelevant.has(id)).length;
       setPendingIds(ids);
-      setUnreadCount(unread);
+      setPendingUnread(unreadPending);
+      setAutoJoinUnread(settings.unseenAutoJoinCount || settings.unseenAutoJoinIds.length);
     } catch {
       // Keep last known count; avoid noisy toasts in the header.
     }
@@ -81,15 +86,15 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
 
   useEffect(() => {
     if (!isAdminPanel) return;
-    void refreshPendingCount();
-    const poll = window.setInterval(() => void refreshPendingCount(), PENDING_POLL_MS);
-    const onFocus = () => void refreshPendingCount();
+    void refreshNotificationCount();
+    const poll = window.setInterval(() => void refreshNotificationCount(), PENDING_POLL_MS);
+    const onFocus = () => void refreshNotificationCount();
     window.addEventListener("focus", onFocus);
     return () => {
       window.clearInterval(poll);
       window.removeEventListener("focus", onFocus);
     };
-  }, [isAdminPanel, refreshPendingCount, location.pathname]);
+  }, [isAdminPanel, refreshNotificationCount, location.pathname]);
 
   const handleLogout = () => {
     const loginPath = getLoginPathForRole(role);
@@ -97,11 +102,18 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
     navigate(loginPath, { replace: true });
   };
 
-  const handlePendingNotifications = () => {
-    // Mark current pending requests as read so the badge clears.
+  const handleNotifications = async () => {
+    const hadPending = pendingUnread > 0 || pendingIds.length > 0;
+    // Mark pending as read + clear auto-join notices (mode OFF).
     writeSeenPendingIds(pendingIds);
-    setUnreadCount(0);
-    navigate("/admin/users?status=PENDING");
+    setPendingUnread(0);
+    setAutoJoinUnread(0);
+    try {
+      await clearUserJoinNotices();
+    } catch {
+      // Navigation still proceeds; badge may return on next poll if clear failed.
+    }
+    navigate(hadPending ? "/admin/users?status=PENDING" : "/admin/users?status=APPROVED");
   };
 
   return (
@@ -156,14 +168,14 @@ const Navbar = ({ onToggleSidebar }: NavbarProps) => {
         {isAdminPanel && (
           <button
             type="button"
-            onClick={handlePendingNotifications}
+            onClick={() => void handleNotifications()}
             className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/25 text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             aria-label={
               unreadCount > 0
-                ? `${unreadCount} unread pending request${unreadCount === 1 ? "" : "s"}`
-                : "Pending user requests"
+                ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
+                : "User join notifications"
             }
-            title="Pending user requests"
+            title="User join notifications"
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (

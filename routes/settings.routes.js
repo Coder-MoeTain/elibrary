@@ -34,6 +34,12 @@ router.put(
   requireAdmin,
   settingsController.updateGoogleJoinApproval
 );
+router.post(
+  '/user-join-notices/read',
+  authenticate,
+  requireAdmin,
+  settingsController.clearUserJoinNotices
+);
 
 router.get('/backups', authenticate, requireSuperAdmin, settingsController.listBackups);
 router.post('/backups', authenticate, requireSuperAdmin, settingsController.createBackup);

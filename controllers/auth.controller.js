@@ -52,7 +52,10 @@ const googleSignIn = asyncHandler(async (req, res) => {
   });
 
   if (result.status === 'PENDING') {
-    return created(res, result, MESSAGES.REGISTRATION_SUBMITTED);
+    const message = result.reapplied
+      ? 'Your join request was submitted again. Please wait for admin approval.'
+      : MESSAGES.REGISTRATION_SUBMITTED;
+    return created(res, result, message);
   }
 
   return success(res, { data: result, message: 'User signed in' });

@@ -70,8 +70,9 @@ async function uniqueUserNameFromGoogle({ email, name }) {
 /**
  * Google Sign-In for members.
  * - Existing APPROVED → JWT
- * - Existing PENDING / REJECTED → error
- * - New → PENDING (if require-approval setting on) or APPROVED + JWT (if off)
+ * - Existing PENDING → error (awaiting admin)
+ * - Existing REJECTED → re-apply: PENDING (if require-approval on) or APPROVED + JWT
+ * - New → PENDING (if require-approval on) or APPROVED + JWT
  */
 async function googleSignIn({ idToken }) {
   const settingsService = require('./settings.service');
@@ -89,9 +90,28 @@ async function googleSignIn({ idToken }) {
       });
     }
     if (existing.status === USER_STATUS.REJECTED) {
-      throw new AppError(MESSAGES.USER_REJECTED, HTTP_STATUS.UNAUTHORIZED, null, {
-        status: USER_STATUS.REJECTED,
-      });
+      const requireApproval = await settingsService.getGoogleJoinRequireApproval();
+      if (requireApproval) {
+        await existing.update({ status: USER_STATUS.PENDING });
+        let reapplied = existing;
+        try {
+          reapplied =
+            (await User.unscoped().findByPk(existing.usersId, {
+              include: [{ association: 'department', required: false }],
+            })) || existing;
+        } catch {
+          reapplied = existing;
+        }
+        const json = reapplied.toJSON();
+        delete json.password;
+        return {
+          status: USER_STATUS.PENDING,
+          user: json,
+          reapplied: true,
+        };
+      }
+      await existing.update({ status: USER_STATUS.APPROVED });
+      return memberTokenPayload(existing);
     }
     return memberTokenPayload(existing);
   }

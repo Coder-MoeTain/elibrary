@@ -28,6 +28,20 @@ const updateGoogleJoinApproval = asyncHandler(async (req, res) => {
   });
 });
 
+const updateEbooksEnabled = asyncHandler(async (req, res) => {
+  const raw = req.body?.ebooksEnabled ?? req.body?.enabled;
+  if (typeof raw !== 'boolean') {
+    throw new AppError('ebooksEnabled must be true or false.', HTTP_STATUS.BAD_REQUEST);
+  }
+  const data = await settingsService.updateEbooksEnabled(raw);
+  return success(res, {
+    data,
+    message: raw
+      ? 'Mobile app will show the E-Books catalog'
+      : 'Mobile app will show E-Books as Coming Soon',
+  });
+});
+
 const clearUserJoinNotices = asyncHandler(async (req, res) => {
   const data = await settingsService.clearUnseenAutoJoinNotices();
   return success(res, { data, message: 'Join notifications cleared' });
@@ -72,6 +86,7 @@ module.exports = {
   get,
   updateTimezone,
   updateGoogleJoinApproval,
+  updateEbooksEnabled,
   clearUserJoinNotices,
   createBackup,
   listBackups,

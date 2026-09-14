@@ -16,11 +16,13 @@ import {
   downloadBackupFile,
   getAdminProfile,
   getApiErrorMessage,
+  getAppSettings,
   listBackups,
   restoreBackupFile,
   restoreBackupUpload,
   updateAdminProfile,
-  updateAppTimezone
+  updateAppTimezone,
+  updateEbooksEnabled
 } from "../../services/api";
 import { formatBytes } from "../../utils/datetime";
 
@@ -102,6 +104,10 @@ const Settings = () => {
   const [uploadName, setUploadName] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
+  const [ebooksEnabled, setEbooksEnabled] = useState(false);
+  const [loadingEbooksFlag, setLoadingEbooksFlag] = useState(true);
+  const [savingEbooksFlag, setSavingEbooksFlag] = useState(false);
+
   useEffect(() => {
     setDraftTz(tz.timezone);
   }, [tz.timezone]);
@@ -124,6 +130,25 @@ const Settings = () => {
         if (!cancelled) setToast({ kind: "error", message: getApiErrorMessage(err) });
       } finally {
         if (!cancelled) setLoadingProfile(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setLoadingEbooksFlag(true);
+        const settings = await getAppSettings();
+        if (!cancelled) setEbooksEnabled(settings.ebooksEnabled);
+      } catch (err) {
+        if (!cancelled) setToast({ kind: "error", message: getApiErrorMessage(err) });
+      } finally {
+        if (!cancelled) setLoadingEbooksFlag(false);
       }
     };
     load();
@@ -220,6 +245,24 @@ const Settings = () => {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     } finally {
       setSavingTz(false);
+    }
+  };
+
+  const onToggleEbooksEnabled = async (next: boolean) => {
+    try {
+      setSavingEbooksFlag(true);
+      const settings = await updateEbooksEnabled(next);
+      setEbooksEnabled(settings.ebooksEnabled);
+      setToast({
+        kind: "success",
+        message: settings.ebooksEnabled
+          ? "Mobile app will show the current E-Books UI."
+          : "Mobile app will show E-Books as Coming Soon."
+      });
+    } catch (err) {
+      setToast({ kind: "error", message: getApiErrorMessage(err) });
+    } finally {
+      setSavingEbooksFlag(false);
     }
   };
 
@@ -369,15 +412,37 @@ const Settings = () => {
       )}
 
       {tab === "appearance" && (
-        <section className={cardClass}>
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Theme</h3>
-          <ToggleRow
-            checked={theme === "dark"}
-            onChange={(next) => setTheme(next ? "dark" : "light")}
-            label="Dark mode"
-            description="Applies to the admin panel on this device."
-          />
-        </section>
+        <div className="space-y-6">
+          <section className={cardClass}>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Theme</h3>
+            <ToggleRow
+              checked={theme === "dark"}
+              onChange={(next) => setTheme(next ? "dark" : "light")}
+              label="Dark mode"
+              description="Applies to the admin panel on this device."
+            />
+          </section>
+
+          <section className={cardClass}>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Mobile E-Books</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              When off, the mobile app shows Coming Soon instead of the E-Books catalog. Turn on when
+              copyright/licensing is ready — the existing E-Books UI appears without an app update.
+            </p>
+            <ToggleRow
+              checked={ebooksEnabled}
+              onChange={onToggleEbooksEnabled}
+              label="Show E-Books in mobile app"
+              description={
+                loadingEbooksFlag || savingEbooksFlag
+                  ? "Updating…"
+                  : ebooksEnabled
+                    ? "Members see the normal E-Books list, reader, and downloads."
+                    : "Members see Coming Soon for E-Books, Research Papers, Favorites, Downloads, and Recent."
+              }
+            />
+          </section>
+        </div>
       )}
 
       {tab === "timezone" && (

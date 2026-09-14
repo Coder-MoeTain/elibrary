@@ -34,6 +34,12 @@ router.put(
   requireAdmin,
   settingsController.updateGoogleJoinApproval
 );
+router.put(
+  '/ebooks-enabled',
+  authenticate,
+  requireAdmin,
+  settingsController.updateEbooksEnabled
+);
 router.post(
   '/user-join-notices/read',
   authenticate,

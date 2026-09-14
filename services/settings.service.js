@@ -26,6 +26,13 @@ const MAX_BACKUPS = 30;
 /** When true, new Google Sign-In users are PENDING until admin Accept. When false, they join as APPROVED. */
 const GOOGLE_JOIN_REQUIRE_APPROVAL_KEY = 'google_join_require_approval';
 const GOOGLE_JOIN_REQUIRE_APPROVAL_DEFAULT = true;
+/**
+ * When true, the mobile app shows the normal E-Books UI.
+ * When false, mobile shows "Coming Soon" (catalog/PDF stay on server).
+ * Default false so Play Store can ship without exposing ebooks until enabled.
+ */
+const EBOOKS_ENABLED_KEY = 'ebooks_enabled';
+const EBOOKS_ENABLED_DEFAULT = false;
 /** JSON array of user IDs that auto-joined (mode OFF) and have not been acknowledged by admin. */
 const UNSEEN_AUTO_JOIN_IDS_KEY = 'unseen_auto_join_user_ids';
 const MAX_UNSEEN_AUTO_JOINS = 200;
@@ -81,6 +88,20 @@ async function updateGoogleJoinRequireApproval(enabled) {
   return getPublicSettings();
 }
 
+async function getEbooksEnabled() {
+  const raw = await getSetting(
+    EBOOKS_ENABLED_KEY,
+    EBOOKS_ENABLED_DEFAULT ? 'true' : 'false'
+  );
+  return parseBoolSetting(raw, EBOOKS_ENABLED_DEFAULT);
+}
+
+async function updateEbooksEnabled(enabled) {
+  const next = Boolean(enabled);
+  await setSetting(EBOOKS_ENABLED_KEY, next ? 'true' : 'false');
+  return getPublicSettings();
+}
+
 function parseIdList(raw) {
   try {
     const parsed = JSON.parse(String(raw || '[]'));
@@ -119,6 +140,7 @@ async function clearUnseenAutoJoinNotices() {
 async function getPublicSettings() {
   const timezone = await getTimezone();
   const googleJoinRequireApproval = await getGoogleJoinRequireApproval();
+  const ebooksEnabled = await getEbooksEnabled();
   const unseenAutoJoinIds = await getUnseenAutoJoinIds();
   return {
     timezone,
@@ -127,6 +149,7 @@ async function getPublicSettings() {
     today: calendarDate(timezone),
     groups: TIMEZONE_GROUPS,
     googleJoinRequireApproval,
+    ebooksEnabled,
     unseenAutoJoinIds,
     unseenAutoJoinCount: unseenAutoJoinIds.length,
   };
@@ -334,6 +357,8 @@ module.exports = {
   updateTimezone,
   getGoogleJoinRequireApproval,
   updateGoogleJoinRequireApproval,
+  getEbooksEnabled,
+  updateEbooksEnabled,
   getUnseenAutoJoinIds,
   enqueueAutoJoinNotice,
   clearUnseenAutoJoinNotices,

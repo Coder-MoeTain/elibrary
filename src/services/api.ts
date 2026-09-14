@@ -1500,6 +1500,8 @@ export type AppSettings = {
   groups: TimezoneGroup[];
   /** When true, new Google Sign-In users stay PENDING until admin Accept. */
   googleJoinRequireApproval: boolean;
+  /** When true, mobile shows the normal E-Books UI; when false, Coming Soon. */
+  ebooksEnabled: boolean;
   /** Auto-approved Google joins (mode OFF) waiting for admin acknowledgement. */
   unseenAutoJoinIds: number[];
   unseenAutoJoinCount: number;
@@ -1514,6 +1516,7 @@ export type BackupFile = {
 function unwrapSettings(raw: unknown): AppSettings {
   const r = (raw ?? {}) as Record<string, unknown>;
   const approvalRaw = r.googleJoinRequireApproval ?? r.google_join_require_approval;
+  const ebooksRaw = r.ebooksEnabled ?? r.ebooks_enabled;
   const joinIdsRaw = r.unseenAutoJoinIds ?? r.unseen_auto_join_ids;
   const unseenAutoJoinIds = Array.isArray(joinIdsRaw)
     ? [
@@ -1535,6 +1538,11 @@ function unwrapSettings(raw: unknown): AppSettings {
       approvalRaw === true ||
       approvalRaw === 1 ||
       String(approvalRaw ?? "true").toLowerCase() === "true",
+    // Missing key → false (Coming Soon) until admin enables.
+    ebooksEnabled:
+      ebooksRaw === true ||
+      ebooksRaw === 1 ||
+      String(ebooksRaw ?? "false").toLowerCase() === "true",
     unseenAutoJoinIds,
     unseenAutoJoinCount: Number.isFinite(countRaw) ? countRaw : unseenAutoJoinIds.length,
   };
@@ -1555,6 +1563,13 @@ export async function updateGoogleJoinRequireApproval(
 ): Promise<AppSettings> {
   const { data } = await api.put<ApiEnvelope<unknown>>("/settings/google-join-approval", {
     googleJoinRequireApproval,
+  });
+  return unwrapSettings(data.data);
+}
+
+export async function updateEbooksEnabled(ebooksEnabled: boolean): Promise<AppSettings> {
+  const { data } = await api.put<ApiEnvelope<unknown>>("/settings/ebooks-enabled", {
+    ebooksEnabled,
   });
   return unwrapSettings(data.data);
 }

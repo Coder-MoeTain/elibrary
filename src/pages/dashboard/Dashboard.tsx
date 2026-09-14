@@ -1,11 +1,17 @@
 import { motion } from "framer-motion";
-import { BookMarked, BookOpen, ClipboardList, FileDown, Users } from "lucide-react";
+import { BookMarked, BookOpen, ClipboardList, FileDown, Smartphone, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../components/ui/Card";
 import PageHeader from "../../components/ui/PageHeader";
+import ToastBanner from "../../components/ui/ToastBanner";
 import { useAnimatedNumber } from "../../hooks/useAnimatedNumber";
-import { getApiErrorMessage, getDashboardStats } from "../../services/api";
+import {
+  getApiErrorMessage,
+  getAppSettings,
+  getDashboardStats,
+  updateEbooksEnabled
+} from "../../services/api";
 import DashboardAnalytics from "./DashboardAnalytics";
 
 type StatDef = {
@@ -16,6 +22,8 @@ type StatDef = {
   bg: string;
   to: string;
 };
+
+type Toast = { kind: "success" | "error"; message: string } | null;
 
 const statDefs: StatDef[] = [
   {
@@ -104,6 +112,10 @@ const Dashboard = () => {
     monthlyRentals: 0
   });
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [ebooksEnabled, setEbooksEnabled] = useState(false);
+  const [loadingEbooksFlag, setLoadingEbooksFlag] = useState(true);
+  const [savingEbooksFlag, setSavingEbooksFlag] = useState(false);
+  const [toast, setToast] = useState<Toast>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,17 +134,94 @@ const Dashboard = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setLoadingEbooksFlag(true);
+        const settings = await getAppSettings();
+        if (!cancelled) setEbooksEnabled(settings.ebooksEnabled);
+      } catch (err) {
+        if (!cancelled) {
+          setToast({ kind: "error", message: getApiErrorMessage(err) });
+        }
+      } finally {
+        if (!cancelled) setLoadingEbooksFlag(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onToggleEbooksEnabled = async (next: boolean) => {
+    try {
+      setSavingEbooksFlag(true);
+      const settings = await updateEbooksEnabled(next);
+      setEbooksEnabled(settings.ebooksEnabled);
+      setToast({
+        kind: "success",
+        message: settings.ebooksEnabled
+          ? "Mobile app will show the current E-Books UI."
+          : "Mobile app will show E-Books as Coming Soon."
+      });
+    } catch (err) {
+      setToast({ kind: "error", message: getApiErrorMessage(err) });
+    } finally {
+      setSavingEbooksFlag(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Dashboard"
         description="Catalog totals, imported papers, and activity for the current library timezone."
       />
+      {toast ? <ToastBanner kind={toast.kind} message={toast.message} /> : null}
       {loadError ? (
         <p className="text-sm text-rose-600 dark:text-rose-400" role="alert">
           {loadError}
         </p>
       ) : null}
+
+      <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/40">
+            <Smartphone className="h-6 w-6 text-violet-600" aria-hidden />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+              Mobile E-Books
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {loadingEbooksFlag || savingEbooksFlag
+                ? "Updating…"
+                : ebooksEnabled
+                  ? "On — members see the normal E-Books catalog, reader, and downloads."
+                  : "Off — members see Coming Soon instead of the E-Books catalog."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={ebooksEnabled}
+          aria-label="Show E-Books in mobile app"
+          disabled={loadingEbooksFlag || savingEbooksFlag}
+          onClick={() => onToggleEbooksEnabled(!ebooksEnabled)}
+          className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition disabled:opacity-60 ${
+            ebooksEnabled ? "bg-primary" : "bg-slate-300 dark:bg-slate-600"
+          }`}
+        >
+          <span
+            className={`pointer-events-none inline-block h-6 w-6 translate-y-0.5 rounded-full bg-white shadow transition ${
+              ebooksEnabled ? "translate-x-5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statDefs.map((s, index) => (

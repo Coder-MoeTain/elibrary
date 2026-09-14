@@ -20,7 +20,13 @@ async function adminLogin(adminName, password) {
 }
 
 async function userLogin(userName, password) {
-  const user = await User.unscoped().findOne({ where: { userName, isDeleted: false } });
+  const loginId = String(userName || '').trim();
+  const user = await User.unscoped().findOne({
+    where: {
+      isDeleted: false,
+      [Op.or]: [{ userName: loginId }, { email: loginId }],
+    },
+  });
   if (!user || !user.password || !(await comparePassword(password, user.password))) {
     throw new AppError(MESSAGES.INVALID_CREDENTIALS, HTTP_STATUS.UNAUTHORIZED);
   }

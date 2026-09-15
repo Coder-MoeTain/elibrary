@@ -12,6 +12,7 @@ const sequelize = new Sequelize(
     port: dbConfig.port,
     dialect: dbConfig.dialect,
     logging: dbConfig.logging,
+    dialectOptions: dbConfig.dialectOptions,
     define: {
       underscored: false,
       timestamps: true,

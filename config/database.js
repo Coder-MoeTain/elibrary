@@ -7,6 +7,7 @@ function env(key, fallback) {
 }
 
 const isProd = env('NODE_ENV', 'development') === 'production';
+const socketPath = env('DB_SOCKET', '');
 
 const common = {
   dialect: 'mysql',
@@ -18,6 +19,14 @@ const common = {
   logging: env('NODE_ENV', 'development') === 'development' ? console.log : false,
   /** Match `library.sql` / Linux-friendly lowercase meta table */
   migrationStorageTableName: 'sequelizemeta',
+  // Prefer Unix socket when TCP to 127.0.0.1:3306 hangs (common after mysqld restarts).
+  ...(socketPath
+    ? {
+        dialectOptions: {
+          socketPath
+        }
+      }
+    : {})
 };
 
 module.exports = {

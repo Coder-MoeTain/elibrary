@@ -155,7 +155,7 @@ const Books = () => {
     [availableParam, debouncedQ, limit, sortBy, sortOrder]
   );
 
-  const fetchAll = async () => {
+  const fetchAll = async (targetPage = 1) => {
     try {
       const [authorRows, categoryRows] = await Promise.all([
         getAuthors(),
@@ -163,7 +163,7 @@ const Books = () => {
       ]);
       setAuthors(authorRows);
       setCategories(categoryRows);
-      await loadBooks({ page: 1, showSpinner: true });
+      await loadBooks({ page: targetPage, showSpinner: true });
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     }
@@ -361,6 +361,7 @@ const Books = () => {
     }
     try {
       setSaving(true);
+      const wasEditing = Boolean(editingId);
       if (editingId) {
         await updateBook(editingId, payload);
         setToast({ kind: "success", message: "Book updated successfully." });
@@ -370,7 +371,7 @@ const Books = () => {
       }
       setOpenForm(false);
       resetForm();
-      await fetchAll();
+      await fetchAll(wasEditing ? page : 1);
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     } finally {
@@ -386,7 +387,8 @@ const Books = () => {
       setToast({ kind: "success", message: "Book deleted successfully." });
       setOpenDelete(false);
       setSelected(null);
-      await fetchAll();
+      const nextPage = Math.min(page, Math.max(1, Math.ceil((total - 1) / limit)));
+      await fetchAll(nextPage);
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     } finally {

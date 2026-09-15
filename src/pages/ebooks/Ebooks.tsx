@@ -159,7 +159,7 @@ const Ebooks = () => {
     [debouncedQ, limit, statusFilter]
   );
 
-  const fetchAll = async () => {
+  const fetchAll = async (targetPage = 1) => {
     try {
       const [authorRows, categoryRows] = await Promise.all([
         getAuthors(),
@@ -167,7 +167,7 @@ const Ebooks = () => {
       ]);
       setAuthors(authorRows);
       setCategories(categoryRows);
-      await loadEbooks({ page: 1, showSpinner: true });
+      await loadEbooks({ page: targetPage, showSpinner: true });
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     }
@@ -382,6 +382,7 @@ const Ebooks = () => {
     }
     try {
       setSaving(true);
+      const wasEditing = Boolean(editingId);
       if (editingId) {
         await updateEbook(editingId, payload);
         setToast({ kind: "success", message: "e-Book updated successfully." });
@@ -391,7 +392,7 @@ const Ebooks = () => {
       }
       setOpenForm(false);
       resetForm();
-      await fetchAll();
+      await fetchAll(wasEditing ? page : 1);
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     } finally {
@@ -407,7 +408,8 @@ const Ebooks = () => {
       setToast({ kind: "success", message: "e-Book deleted successfully." });
       setOpenDelete(false);
       setSelected(null);
-      await fetchAll();
+      const nextPage = Math.min(page, Math.max(1, Math.ceil((total - 1) / limit)));
+      await fetchAll(nextPage);
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     } finally {

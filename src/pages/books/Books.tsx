@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { ChevronDown, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Modal from "../../components/ui/Modal";
@@ -17,6 +17,11 @@ import PageHeader from "../../components/ui/PageHeader";
 import { ADMIN_TABLE_DISPLAY_MODE } from "../../config/adminTableMode";
 import Tooltip from "../../components/ui/Tooltip";
 import { isSuperAdmin, SUPER_ADMIN_ONLY_TOOLTIP } from "../../utils/auth";
+import {
+  ADMIN_BOOKS_LIST_RETURN_KEY,
+  buildQueryString,
+  parsePositiveInt
+} from "../../utils/adminListReturn";
 import {
   AuthorOption,
   BookItem,
@@ -71,14 +76,20 @@ const emptyForm: BookPayload = {
 
 const Books = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [books, setBooks] = useState<BookRow[]>([]);
   const [authors, setAuthors] = useState<AuthorOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
+  const page = parsePositiveInt(searchParams.get("page"), 1);
+  const limit = parsePositiveInt(searchParams.get("limit"), 10);
+  const statusFromUrl = searchParams.get("status");
+  const statusFilter: StatusFilterValue =
+    statusFromUrl === "available" || statusFromUrl === "unavailable" ? statusFromUrl : "all";
+  const qFromUrl = searchParams.get("q") ?? "";
+  const [q, setQ] = useState(qFromUrl);
+  const [debouncedQ, setDebouncedQ] = useState(qFromUrl);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const statusHeaderRef = useRef<HTMLDivElement>(null);
   const [openForm, setOpenForm] = useState(false);
@@ -91,13 +102,43 @@ const Books = () => {
   const [toast, setToast] = useState<Toast>(null);
   const [authorQuery, setAuthorQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const skipFilterResetRef = useRef(true);
+
+  const buildBooksListSearch = (overrides?: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: StatusFilterValue;
+  }) =>
+    buildQueryString({
+      page: (overrides?.page ?? page) > 1 ? overrides?.page ?? page : undefined,
+      limit: (overrides?.limit ?? limit) !== 10 ? overrides?.limit ?? limit : undefined,
+      q: (overrides?.q ?? debouncedQ) || undefined,
+      status: (overrides?.status ?? statusFilter) !== "all" ? overrides?.status ?? statusFilter : undefined
+    });
+
+  const updateListParams = (overrides: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: StatusFilterValue;
+  }) => {
+    const next = new URLSearchParams();
+    const nextPage = overrides.page ?? page;
+    const nextLimit = overrides.limit ?? limit;
+    const nextQ = overrides.q !== undefined ? overrides.q : debouncedQ;
+    const nextStatus = overrides.status ?? statusFilter;
+    if (nextPage > 1) next.set("page", String(nextPage));
+    if (nextLimit !== 10) next.set("limit", String(nextLimit));
+    if (nextQ.trim()) next.set("q", nextQ.trim());
+    if (nextStatus !== "all") next.set("status", nextStatus);
+    setSearchParams(next, { replace: true });
+  };
 
   const hydrateRows = (rows: BookItem[]): BookRow[] =>
     rows.map((b) => ({
@@ -146,7 +187,6 @@ const Books = () => {
         );
         setTotal(result.total);
         setHasMore(result.hasMore);
-        setPage(result.page);
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -163,6 +203,7 @@ const Books = () => {
       ]);
       setAuthors(authorRows);
       setCategories(categoryRows);
+      if (targetPage !== page) updateListParams({ page: targetPage });
       await loadBooks({ page: targetPage, showSpinner: true });
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
@@ -173,6 +214,24 @@ const Books = () => {
     const t = window.setTimeout(() => setDebouncedQ(q.trim()), 350);
     return () => window.clearTimeout(t);
   }, [q]);
+
+  useEffect(() => {
+    if (qFromUrl !== debouncedQ && qFromUrl !== q) {
+      setQ(qFromUrl);
+      setDebouncedQ(qFromUrl);
+    }
+  }, [qFromUrl]);
+
+  useEffect(() => {
+    if (skipFilterResetRef.current) {
+      skipFilterResetRef.current = false;
+      return;
+    }
+    if (page !== 1) updateListParams({ page: 1, q: debouncedQ });
+    else if ((searchParams.get("q") ?? "") !== debouncedQ) {
+      updateListParams({ page: 1, q: debouncedQ });
+    }
+  }, [debouncedQ]);
 
   useEffect(() => {
     void getAuthors()
@@ -187,7 +246,7 @@ const Books = () => {
     let cancelled = false;
     const run = async () => {
       try {
-        await loadBooks({ page: 1 });
+        await loadBooks({ page });
       } catch (err) {
         if (!cancelled) setToast({ kind: "error", message: getApiErrorMessage(err) });
       }
@@ -196,7 +255,7 @@ const Books = () => {
     return () => {
       cancelled = true;
     };
-  }, [loadBooks]);
+  }, [loadBooks, page]);
 
   const { ref: infiniteSentinelRef, inView: infiniteInView } = useInView({
     threshold: 0,
@@ -231,9 +290,7 @@ const Books = () => {
   };
 
   const onPageChange = (next: number) => {
-    void loadBooks({ page: next }).catch((err) =>
-      setToast({ kind: "error", message: getApiErrorMessage(err) })
-    );
+    updateListParams({ page: next });
   };
 
   const tableRows = books;
@@ -273,7 +330,7 @@ const Books = () => {
                   : "text-slate-700 dark:text-slate-200"
               }`}
               onClick={() => {
-                setStatusFilter(value);
+                updateListParams({ page: 1, status: value });
                 setStatusMenuOpen(false);
               }}
             >
@@ -286,7 +343,7 @@ const Books = () => {
                 type="button"
                 className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/80 dark:hover:text-slate-200"
                 onClick={() => {
-                  setStatusFilter("all");
+                  updateListParams({ page: 1, status: "all" });
                   setStatusMenuOpen(false);
                 }}
               >
@@ -338,7 +395,11 @@ const Books = () => {
     setOpenDelete(true);
   };
 
-  const goToDetail = (row: BookRow) => navigate(`/admin/books/${row.id}`);
+  const goToDetail = (row: BookRow) => {
+    const returnTo = `/admin/books${buildBooksListSearch()}`;
+    sessionStorage.setItem(ADMIN_BOOKS_LIST_RETURN_KEY, returnTo);
+    navigate(`/admin/books/${row.id}`, { state: { listReturnTo: returnTo } });
+  };
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -555,7 +616,7 @@ const Books = () => {
                 total={total}
                 onPageChange={onPageChange}
                 onLimitChange={(val) => {
-                  setLimit(val);
+                  updateListParams({ page: 1, limit: val });
                 }}
               />
             ) : (

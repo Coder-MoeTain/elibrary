@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { BookItem, getApiErrorMessage, getBookAvailability, getBookById } from "../../services/api";
+import { ADMIN_BOOKS_LIST_RETURN_KEY } from "../../utils/adminListReturn";
 
 type Toast = { kind: "success" | "error"; message: string } | null;
 
@@ -13,7 +14,11 @@ const BookDetail = () => {
   const location = useLocation();
   const bookId = Number(id);
   const isAdmin = location.pathname.startsWith("/admin");
-  const backPath = isAdmin ? "/admin/books" : "/member/books";
+  const listReturnTo =
+    (location.state as { listReturnTo?: string } | null)?.listReturnTo ??
+    (isAdmin ? sessionStorage.getItem(ADMIN_BOOKS_LIST_RETURN_KEY) : null) ??
+    "";
+  const backPath = isAdmin ? listReturnTo || "/admin/books" : "/member/books";
 
   const [book, setBook] = useState<BookItem | null>(null);
   const [available, setAvailable] = useState<boolean>(false);

@@ -1,6 +1,6 @@
 import { Eye, Pencil, RefreshCw, Search } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import DatePicker from "../../components/ui/DatePicker";
 import Input from "../../components/ui/Input";
@@ -10,6 +10,12 @@ import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
 import PageHeader from "../../components/ui/PageHeader";
 import { useTimezone } from "../../context/TimezoneContext";
+import {
+  ADMIN_CATALOG_LIST_RETURN_KEY,
+  ADMIN_IMPORTS_LIST_RETURN_KEY,
+  buildQueryString,
+  parsePositiveInt
+} from "../../utils/adminListReturn";
 import {
   AuthorOption,
   CategoryOption,
@@ -64,15 +70,17 @@ const PAGE_SIZE = 25;
 
 const ImportedPapers = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { formatDateTime, formatTime } = useTimezone();
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [authors, setAuthors] = useState<AuthorOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
-  const [page, setPage] = useState(1);
+  const page = parsePositiveInt(searchParams.get("page"), 1);
+  const qFromUrl = searchParams.get("q") ?? "";
+  const [q, setQ] = useState(qFromUrl);
+  const [debouncedQ, setDebouncedQ] = useState(qFromUrl);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [toast, setToast] = useState<Toast>(null);
@@ -82,6 +90,29 @@ const ImportedPapers = () => {
   const [form, setForm] = useState<EbookPayload>(emptyForm);
   const [authorQuery, setAuthorQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
+  const skipFilterResetRef = useRef(true);
+
+  const buildImportsListSearch = (overrides?: { page?: number; q?: string }) =>
+    buildQueryString({
+      page: (overrides?.page ?? page) > 1 ? overrides?.page ?? page : undefined,
+      q: (overrides?.q ?? debouncedQ) || undefined
+    });
+
+  const updateListParams = (overrides: { page?: number; q?: string }) => {
+    const next = new URLSearchParams();
+    const nextPage = overrides.page ?? page;
+    const nextQ = overrides.q !== undefined ? overrides.q : debouncedQ;
+    if (nextPage > 1) next.set("page", String(nextPage));
+    if (nextQ.trim()) next.set("q", nextQ.trim());
+    setSearchParams(next, { replace: true });
+  };
+
+  const goToDetail = (row: ImportRow) => {
+    const returnTo = `/admin/imports${buildImportsListSearch()}`;
+    sessionStorage.setItem(ADMIN_IMPORTS_LIST_RETURN_KEY, returnTo);
+    sessionStorage.setItem(ADMIN_CATALOG_LIST_RETURN_KEY, returnTo);
+    navigate(`/admin/ebooks/${row.id}`, { state: { listReturnTo: returnTo } });
+  };
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(q.trim()), 350);
@@ -89,7 +120,21 @@ const ImportedPapers = () => {
   }, [q]);
 
   useEffect(() => {
-    setPage(1);
+    if (qFromUrl !== debouncedQ && qFromUrl !== q) {
+      setQ(qFromUrl);
+      setDebouncedQ(qFromUrl);
+    }
+  }, [qFromUrl]);
+
+  useEffect(() => {
+    if (skipFilterResetRef.current) {
+      skipFilterResetRef.current = false;
+      return;
+    }
+    if (page !== 1) updateListParams({ page: 1, q: debouncedQ });
+    else if ((searchParams.get("q") ?? "") !== debouncedQ) {
+      updateListParams({ page: 1, q: debouncedQ });
+    }
   }, [debouncedQ]);
 
   useEffect(() => {
@@ -130,7 +175,6 @@ const ImportedPapers = () => {
           }))
         );
         setTotal(result.total);
-        setPage(result.page);
         setUpdatedAt(new Date());
       } catch (err) {
         setError(getApiErrorMessage(err));
@@ -251,7 +295,7 @@ const ImportedPapers = () => {
             type="button"
             className={actionClass}
             title="View"
-            onClick={() => navigate(`/admin/ebooks/${row.id}`)}
+            onClick={() => goToDetail(row)}
           >
             <Eye className="h-4 w-4" />
           </button>
@@ -330,7 +374,7 @@ const ImportedPapers = () => {
               page={page}
               limit={PAGE_SIZE}
               total={total}
-              onPageChange={setPage}
+              onPageChange={(next) => updateListParams({ page: next })}
               onLimitChange={() => undefined}
             />
           )}

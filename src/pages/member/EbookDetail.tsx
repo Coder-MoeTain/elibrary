@@ -5,6 +5,9 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import { EBOOKS_LIST_STATE_KEY } from "./Ebooks";
 import {
+  ADMIN_CATALOG_LIST_RETURN_KEY
+} from "../../utils/adminListReturn";
+import {
   buildCoverThumbnailUrl,
   downloadEbookPdf,
   EbookItem,
@@ -38,12 +41,20 @@ const EbookDetail = () => {
   const { id } = useParams();
   const location = useLocation();
   const ebookId = Number(id);
-  const ebooksListPath = location.pathname.startsWith("/admin") ? "/admin/ebooks" : "/member/ebooks";
+  const isAdmin = location.pathname.startsWith("/admin");
+  const ebooksListPath = isAdmin ? "/admin/ebooks" : "/member/ebooks";
+  const listReturnTo =
+    (location.state as { listReturnTo?: string; ebooksListSearch?: string } | null)?.listReturnTo ??
+    (isAdmin ? sessionStorage.getItem(ADMIN_CATALOG_LIST_RETURN_KEY) : null) ??
+    "";
   const ebooksListSearch =
     (location.state as { ebooksListSearch?: string } | null)?.ebooksListSearch ??
     sessionStorage.getItem(EBOOKS_LIST_STATE_KEY) ??
     "";
-  const backToEbooksPath = `${ebooksListPath}${ebooksListSearch}`;
+  const backToEbooksPath = listReturnTo || `${ebooksListPath}${ebooksListSearch}`;
+  const backLabel = listReturnTo.startsWith("/admin/imports")
+    ? "Back to Imported papers"
+    : "Back to e-Books";
   const [book, setBook] = useState<EbookItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackingRead, setTrackingRead] = useState(false);
@@ -203,7 +214,7 @@ const EbookDetail = () => {
           className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          Back to e-Books
+          {backLabel}
         </Link>
         <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-8 text-center text-sm text-slate-500 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
           e-Book not found.
@@ -222,7 +233,7 @@ const EbookDetail = () => {
         className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Back to e-Books
+        {backLabel}
       </Link>
       {toast && (
         <div

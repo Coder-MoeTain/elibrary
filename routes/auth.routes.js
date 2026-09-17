@@ -12,5 +12,6 @@ router.post('/admin/login', authValidation.adminLogin, validate, authController.
 router.post('/user/login', authValidation.userLogin, validate, authController.userLogin);
 router.post('/register', authValidation.register, validate, authController.register);
 router.post('/google', authValidation.googleSignIn, validate, authController.googleSignIn);
+router.post('/apple', authValidation.appleSignIn, validate, authController.appleSignIn);
 
 module.exports = router;

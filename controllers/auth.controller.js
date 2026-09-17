@@ -61,9 +61,28 @@ const googleSignIn = asyncHandler(async (req, res) => {
   return success(res, { data: result, message: 'User signed in' });
 });
 
+const appleSignIn = asyncHandler(async (req, res) => {
+  const result = await authService.appleSignIn({
+    identityToken: req.body.identityToken,
+    nonce: req.body.nonce,
+    fullName: req.body.fullName,
+    email: req.body.email,
+  });
+
+  if (result.status === 'PENDING') {
+    const message = result.reapplied
+      ? 'Your join request was submitted again. Please wait for admin approval.'
+      : MESSAGES.REGISTRATION_SUBMITTED;
+    return created(res, result, message);
+  }
+
+  return success(res, { data: result, message: 'User signed in' });
+});
+
 module.exports = {
   adminLogin,
   userLogin,
   register,
   googleSignIn,
+  appleSignIn,
 };

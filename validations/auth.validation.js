@@ -22,4 +22,11 @@ const googleSignIn = [
   body('idToken').trim().notEmpty().isLength({ max: 4096 }),
 ];
 
-module.exports = { adminLogin, userLogin, register, googleSignIn };
+const appleSignIn = [
+  body('identityToken').trim().notEmpty().isLength({ max: 8192 }),
+  body('nonce').optional({ nullable: true }).trim().isLength({ max: 256 }),
+  body('fullName').optional({ nullable: true }).trim().isLength({ max: 255 }),
+  body('email').optional({ nullable: true }).trim().isLength({ max: 255 }),
+];
+
+module.exports = { adminLogin, userLogin, register, googleSignIn, appleSignIn };

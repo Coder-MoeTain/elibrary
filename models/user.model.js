@@ -25,6 +25,12 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         validate: { len: [0, 255] },
       },
+      appleSub: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        unique: true,
+        field: 'apple_sub',
+      },
       department_department_id: {
         type: DataTypes.INTEGER,
         allowNull: true,

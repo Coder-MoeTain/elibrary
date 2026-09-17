@@ -3,6 +3,7 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    // Safe if already TEXT from a previous partial deploy.
     await queryInterface.changeColumn('app_settings', 'setting_value', {
       type: Sequelize.TEXT,
       allowNull: false,

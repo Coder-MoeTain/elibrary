@@ -28,6 +28,10 @@ function wantsImported(value) {
   return ['1', 'true', 'yes'].includes(String(value ?? '').toLowerCase());
 }
 
+function escapeLike(value) {
+  return String(value).replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 function pickAuthorId(body) {
   return body.authorId ?? body.author_id ?? null;
 }
@@ -545,12 +549,29 @@ async function findPage(options = {}) {
   }
 
   if (q) {
-    // Keep search on main table fields — association Op.or breaks on some MySQL/Sequelize setups.
-    const like = `%${q}%`;
-    where[Op.or] = [
+    // Resolve author/category IDs first — association Op.or paths are unreliable on MySQL.
+    const like = `%${escapeLike(q)}%`;
+    const [matchingAuthors, matchingCategories] = await Promise.all([
+      Author.findAll({
+        attributes: ['authorId'],
+        where: { authorName: { [Op.like]: like } },
+        raw: true,
+      }),
+      Category.findAll({
+        attributes: ['categoryId'],
+        where: { categoryName: { [Op.like]: like } },
+        raw: true,
+      }),
+    ]);
+    const authorIds = matchingAuthors.map((a) => a.authorId).filter(Boolean);
+    const categoryIds = matchingCategories.map((c) => c.categoryId).filter(Boolean);
+    const or = [
       { eBookName: { [Op.like]: like } },
       { description: { [Op.like]: like } },
     ];
+    if (authorIds.length) or.push({ Author_Author_id: { [Op.in]: authorIds } });
+    if (categoryIds.length) or.push({ Category_category_id: { [Op.in]: categoryIds } });
+    where[Op.or] = or;
   }
 
   const categoryNorm = category.toLowerCase();

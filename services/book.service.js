@@ -219,18 +219,37 @@ async function findPage(options = {}) {
   }
 
   if (q) {
+    // Resolve author/category IDs first — association Op.or paths are unreliable on MySQL.
     const like = `%${escapeLike(q)}%`;
-    where[Op.or] = [
+    const [matchingAuthors, matchingCategories] = await Promise.all([
+      Author.findAll({
+        attributes: ['authorId'],
+        where: { authorName: { [Op.like]: like } },
+        raw: true,
+      }),
+      Category.findAll({
+        attributes: ['categoryId'],
+        where: { categoryName: { [Op.like]: like } },
+        raw: true,
+      }),
+    ]);
+    const authorIds = matchingAuthors.map((a) => a.authorId).filter(Boolean);
+    const categoryIds = matchingCategories.map((c) => c.categoryId).filter(Boolean);
+    const or = [
       { bookName: { [Op.like]: like } },
       { description: { [Op.like]: like } },
       { place: { [Op.like]: like } },
-      { '$author.authorName$': { [Op.like]: like } },
-      { '$category.categoryName$': { [Op.like]: like } },
     ];
+    if (authorIds.length) or.push({ Author_Author_id: { [Op.in]: authorIds } });
+    if (categoryIds.length) or.push({ Category_category_id: { [Op.in]: categoryIds } });
+    where[Op.or] = or;
   }
 
+  const categoryNorm = category.toLowerCase();
   const categoryInclude =
-    category && category.toLowerCase() !== 'all'
+    category &&
+    categoryNorm !== 'all' &&
+    categoryNorm !== 'all categories'
       ? {
           association: 'category',
           required: true,

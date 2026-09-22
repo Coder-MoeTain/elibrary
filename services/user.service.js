@@ -253,14 +253,18 @@ async function remove(id) {
       { activeRentalCount: activeRentals }
     );
   }
-  await row.update({ isDeleted: true });
+  // Keep email / appleSub so social login can reject this identity.
+  await row.update({
+    isDeleted: true,
+    password: null,
+  });
   return true;
 }
 
 /**
  * Member self-service account deletion (App Store 5.1.1(v)).
- * Soft-deletes and anonymizes identifiers so the same Apple/Google identity can re-join.
- * Does not block on active rentals — deletion must complete in-app.
+ * Soft-deletes and clears password. Keeps email / appleSub as a tombstone so
+ * the same Google/Apple identity cannot sign into the deleted account again.
  */
 async function removeMe(userId) {
   const row = await User.unscoped().findOne({
@@ -268,13 +272,11 @@ async function removeMe(userId) {
   });
   if (!row) throw new AppError(MESSAGES.NOT_FOUND, HTTP_STATUS.NOT_FOUND);
 
-  const stamp = Date.now();
+  const email = row.email ? String(row.email).trim().toLowerCase() : null;
   await row.update({
     isDeleted: true,
     password: null,
-    appleSub: null,
-    email: `deleted_${userId}_${stamp}@deleted.local`,
-    userName: `deleted_${userId}_${stamp}`,
+    ...(email ? { email } : {}),
   });
   return true;
 }

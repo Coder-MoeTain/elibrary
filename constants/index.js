@@ -40,6 +40,8 @@ module.exports = {
     REGISTRATION_SUBMITTED:
       '📩 Please wait for admin approval. You will receive a confirmation email once approved.',
     USER_ALREADY_EXISTS: 'Username or email is already registered',
+    USER_ACCOUNT_DELETED:
+      'This account has been deleted and can no longer sign in. Contact support if you need help.',
     INVALID_DEPARTMENT: 'Invalid department selected',
     DEPARTMENT_NAME_EXISTS: 'A department with this name already exists.',
     SUPER_ADMIN_ONLY: 'Only Super Admin can perform this action.',

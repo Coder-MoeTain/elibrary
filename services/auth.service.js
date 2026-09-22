@@ -93,16 +93,32 @@ async function socialMemberSignIn({ email, name, appleSub = null }) {
   const settingsService = require('./settings.service');
   const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
 
+  // Resolve identity: prefer an active row; otherwise a deleted tombstone.
   let existing = null;
   if (appleSub) {
     existing = await User.unscoped().findOne({
       where: { appleSub, isDeleted: false },
     });
+    if (!existing) {
+      existing = await User.unscoped().findOne({
+        where: { appleSub, isDeleted: true },
+      });
+    }
   }
   if (!existing && normalizedEmail) {
     existing = await User.unscoped().findOne({
       where: { email: normalizedEmail, isDeleted: false },
     });
+    if (!existing) {
+      existing = await User.unscoped().findOne({
+        where: { email: normalizedEmail, isDeleted: true },
+      });
+    }
+  }
+
+  // Deleted accounts must not sign in or auto-recreate as a "new" user.
+  if (existing && existing.isDeleted) {
+    throw new AppError(MESSAGES.USER_ACCOUNT_DELETED, HTTP_STATUS.FORBIDDEN);
   }
 
   if (existing) {

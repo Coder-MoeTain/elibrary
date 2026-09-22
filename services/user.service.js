@@ -257,6 +257,28 @@ async function remove(id) {
   return true;
 }
 
+/**
+ * Member self-service account deletion (App Store 5.1.1(v)).
+ * Soft-deletes and anonymizes identifiers so the same Apple/Google identity can re-join.
+ * Does not block on active rentals — deletion must complete in-app.
+ */
+async function removeMe(userId) {
+  const row = await User.unscoped().findOne({
+    where: { usersId: userId, isDeleted: false },
+  });
+  if (!row) throw new AppError(MESSAGES.NOT_FOUND, HTTP_STATUS.NOT_FOUND);
+
+  const stamp = Date.now();
+  await row.update({
+    isDeleted: true,
+    password: null,
+    appleSub: null,
+    email: `deleted_${userId}_${stamp}@deleted.local`,
+    userName: `deleted_${userId}_${stamp}`,
+  });
+  return true;
+}
+
 module.exports = {
   registerUser,
   approveUser,
@@ -269,4 +291,5 @@ module.exports = {
   changeMyPassword,
   update,
   remove,
+  removeMe,
 };

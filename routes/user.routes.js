@@ -19,6 +19,7 @@ router.put(
   validate,
   userController.changeMyPassword
 );
+router.delete('/me', authenticate, requireUser, userController.removeMe);
 
 router.use(authenticate, roleMiddleware(ROLES.ADMIN));
 

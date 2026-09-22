@@ -44,4 +44,19 @@ const remove = asyncHandler(async (req, res) => {
   return success(res, { message: 'User archived successfully' });
 });
 
-module.exports = { create, list, getById, getMe, updateMe, changeMyPassword, update, remove };
+const removeMe = asyncHandler(async (req, res) => {
+  await userService.removeMe(req.user.id);
+  return success(res, { message: 'Account deleted successfully' });
+});
+
+module.exports = {
+  create,
+  list,
+  getById,
+  getMe,
+  updateMe,
+  changeMyPassword,
+  update,
+  remove,
+  removeMe,
+};

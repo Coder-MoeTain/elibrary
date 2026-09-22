@@ -19,6 +19,8 @@ router.put(
   validate,
   userController.changeMyPassword
 );
+/** Prefer POST — some proxies mishandle DELETE /users/me as admin /:id */
+router.post('/me/delete', authenticate, requireUser, userController.removeMe);
 router.delete('/me', authenticate, requireUser, userController.removeMe);
 
 router.use(authenticate, roleMiddleware(ROLES.ADMIN));

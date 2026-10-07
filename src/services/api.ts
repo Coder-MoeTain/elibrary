@@ -1727,6 +1727,7 @@ export type ClosedTestingTesterRow = {
 export type ClosedTestingOverview = {
   timezone: string;
   today: string;
+  startDate: string;
   days: number;
   dateKeys: string[];
   dayLabels: string[];
@@ -1740,9 +1741,9 @@ export type ClosedTestingOverview = {
   testers: ClosedTestingTesterRow[];
 };
 
-export async function getClosedTestingOverview(days = 14): Promise<ClosedTestingOverview> {
+export async function getClosedTestingOverview(startDate?: string): Promise<ClosedTestingOverview> {
   const { data } = await api.get<ApiEnvelope<ClosedTestingOverview>>("/closed-testing/overview", {
-    params: { days }
+    params: startDate ? { startDate } : undefined
   });
   const raw = data.data;
   if (!raw || typeof raw !== "object") {
@@ -1751,7 +1752,8 @@ export async function getClosedTestingOverview(days = 14): Promise<ClosedTesting
   return {
     timezone: String(raw.timezone ?? "Asia/Yangon"),
     today: String(raw.today ?? ""),
-    days: Number(raw.days ?? days),
+    startDate: String(raw.startDate ?? "2026-10-07"),
+    days: Number(raw.days ?? 0),
     dateKeys: Array.isArray(raw.dateKeys) ? raw.dateKeys.map(String) : [],
     dayLabels: Array.isArray(raw.dayLabels) ? raw.dayLabels.map(String) : [],
     summary: {

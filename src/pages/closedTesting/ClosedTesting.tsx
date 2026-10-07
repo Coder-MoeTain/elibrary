@@ -63,7 +63,7 @@ const ClosedTesting = () => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const overview = await getClosedTestingOverview(14);
+      const overview = await getClosedTestingOverview();
       setData(overview);
       setError(null);
     } catch (err) {
@@ -88,7 +88,7 @@ const ClosedTesting = () => {
     <div className="space-y-6">
       <PageHeader
         title="Closed Testing"
-        description="Daily active testers over the last 14 days (admin only). Chart uses short names; emails are in the table."
+        description="Daily active testers from Oct 7 onward (grows each day). Short names in the grid; emails in the table."
         actions={
           <Button
             type="button"
@@ -122,16 +122,16 @@ const ClosedTesting = () => {
           hint={data?.today ? `Timezone: ${data.timezone}` : undefined}
         />
         <StatCard
-          label="Active (14 days)"
+          label="Active since start"
           value={data?.summary.activeInWindow ?? 0}
           icon={UserCheck}
-          hint="At least one day in window"
+          hint={data?.startDate ? `From ${data.startDate}` : "At least one day since start"}
         />
         <StatCard
           label="Inactive"
           value={data?.summary.inactive ?? 0}
           icon={UserX}
-          hint="No activity in 14 days"
+          hint="No activity since start"
         />
       </div>
 
@@ -145,7 +145,7 @@ const ClosedTesting = () => {
             Daily active testers
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            How many testers opened the app each day
+            From start date to today — new columns appear each day
           </p>
         </div>
         {loading && !data ? (
@@ -224,8 +224,11 @@ const ClosedTesting = () => {
               <th className="px-3 py-2">Email</th>
               <th className="px-3 py-2">Today</th>
               <th className="px-3 py-2">Last active</th>
-              {(data?.dayLabels ?? []).map((label) => (
-                <th key={label} className="px-1.5 py-2 text-center font-medium normal-case">
+              {(data?.dayLabels ?? []).map((label, i) => (
+                <th
+                  key={`${data?.dateKeys?.[i] ?? label}-${i}`}
+                  className="px-1.5 py-2 text-center font-medium normal-case"
+                >
                   {label}
                 </th>
               ))}

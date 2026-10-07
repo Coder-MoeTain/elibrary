@@ -5,18 +5,40 @@ const { ClosedTester, ClosedTesterActivity, User } = require('../models');
 const settingsService = require('./settings.service');
 const { calendarDate, addCalendarDays, formatDateTime } = require('../utils/timezone');
 
+/** Closed testing timeline starts here and grows forward to today (no fixed end). */
+const DEFAULT_START_DATE = '2026-10-07';
+/** Safety cap so the grid cannot grow without bound if left for years. */
+const MAX_DAYS = 730;
+
 function shortDayLabel(ymd) {
   const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   return dt.toLocaleString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
-function buildDateRange(endYmd, days) {
-  const n = Math.max(1, Math.min(60, Number(days) || 14));
+function resolveStartDate(explicit) {
+  const fromEnv = String(process.env.CLOSED_TESTING_START_DATE || '').trim();
+  const raw = String(explicit || fromEnv || DEFAULT_START_DATE).trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return DEFAULT_START_DATE;
+}
+
+/** Inclusive range from startYmd → endYmd (forward). */
+function buildForwardRange(startYmd, endYmd) {
+  let start = startYmd;
+  let end = endYmd;
+  if (start > end) {
+    // Before start day: show only today once it arrives; until then show start alone.
+    return [start];
+  }
+
   const dates = [];
-  for (let i = n - 1; i >= 0; i -= 1) {
-    const date = addCalendarDays(endYmd, -i);
-    dates.push(date);
+  let cursor = start;
+  let guard = 0;
+  while (cursor <= end && guard < MAX_DAYS) {
+    dates.push(cursor);
+    cursor = addCalendarDays(cursor, 1);
+    guard += 1;
   }
   return dates;
 }
@@ -61,10 +83,11 @@ async function recordHeartbeatForUser(userId) {
   };
 }
 
-async function getOverview(days = 14) {
+async function getOverview(options = {}) {
   const timezone = await settingsService.getTimezone();
   const today = calendarDate(timezone);
-  const dateKeys = buildDateRange(today, days);
+  const startDate = resolveStartDate(options.startDate);
+  const dateKeys = buildForwardRange(startDate, today);
   const rangeStart = dateKeys[0];
 
   const testers = await ClosedTester.findAll({
@@ -118,19 +141,20 @@ async function getOverview(days = 14) {
 
   const invited = testers.length;
   const activeTodayCount = testerRows.filter((t) => t.activeToday).length;
-  const active14Days = testerRows.filter((t) => t.activeInWindow).length;
-  const inactive = invited - active14Days;
+  const activeSinceStart = testerRows.filter((t) => t.activeInWindow).length;
+  const inactive = invited - activeSinceStart;
 
   return {
     timezone,
     today,
+    startDate,
     days: dateKeys.length,
     dateKeys,
     dayLabels: dateKeys.map(shortDayLabel),
     summary: {
       invited,
       activeToday: activeTodayCount,
-      activeInWindow: active14Days,
+      activeInWindow: activeSinceStart,
       inactive,
     },
     daily,
@@ -141,4 +165,5 @@ async function getOverview(days = 14) {
 module.exports = {
   recordHeartbeatForUser,
   getOverview,
+  DEFAULT_START_DATE,
 };

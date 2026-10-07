@@ -10,8 +10,8 @@ const heartbeat = asyncHandler(async (req, res) => {
 });
 
 const overview = asyncHandler(async (req, res) => {
-  const days = Number(req.query.days) || 14;
-  const data = await closedTestingService.getOverview(days);
+  const startDate = req.query.startDate ? String(req.query.startDate) : undefined;
+  const data = await closedTestingService.getOverview({ startDate });
   return success(res, { data });
 });
 

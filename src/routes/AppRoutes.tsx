@@ -9,6 +9,7 @@ import Authors from "../pages/authors/Authors";
 import BookDetail from "../pages/books/BookDetail";
 import Books from "../pages/books/Books";
 import Categories from "../pages/categories/Categories";
+import ClosedTesting from "../pages/closedTesting/ClosedTesting";
 import Dashboard from "../pages/dashboard/Dashboard";
 import Departments from "../pages/departments/Departments";
 import AdminManagement from "../pages/admin/AdminManagement";
@@ -61,6 +62,7 @@ const AppRoutes = () => {
       <Route element={<AdminLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="closed-testing" element={<ClosedTesting />} />
         <Route path="books" element={<Books />} />
         <Route path="books/:id" element={<BookDetail />} />
         <Route path="ebooks" element={<Ebooks />} />

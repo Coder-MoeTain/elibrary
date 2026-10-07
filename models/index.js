@@ -42,6 +42,8 @@ const db = {
   RentList: require('./rentList.model')(sequelize, DataTypes),
   EBookRead: require('./ebookRead.model')(sequelize, DataTypes),
   AppSetting: require('./appSetting.model')(sequelize, DataTypes),
+  ClosedTester: require('./closedTester.model')(sequelize, DataTypes),
+  ClosedTesterActivity: require('./closedTesterActivity.model')(sequelize, DataTypes),
 };
 
 Object.keys(db).forEach((key) => {

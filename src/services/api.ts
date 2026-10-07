@@ -1623,4 +1623,81 @@ export async function deleteBackupFile(fileName: string): Promise<void> {
   await api.delete(`/settings/backups/${encodeURIComponent(fileName)}`);
 }
 
+export type ClosedTestingDailyPoint = {
+  date: string;
+  label: string;
+  active: number;
+};
+
+export type ClosedTestingTesterRow = {
+  id: number;
+  email: string;
+  shortName: string;
+  status: string;
+  lastActiveAt: string | null;
+  lastActiveLabel: string | null;
+  activeToday: boolean;
+  activeInWindow: boolean;
+  days: boolean[];
+};
+
+export type ClosedTestingOverview = {
+  timezone: string;
+  today: string;
+  days: number;
+  dateKeys: string[];
+  dayLabels: string[];
+  summary: {
+    invited: number;
+    activeToday: number;
+    activeInWindow: number;
+    inactive: number;
+  };
+  daily: ClosedTestingDailyPoint[];
+  testers: ClosedTestingTesterRow[];
+};
+
+export async function getClosedTestingOverview(days = 14): Promise<ClosedTestingOverview> {
+  const { data } = await api.get<ApiEnvelope<ClosedTestingOverview>>("/closed-testing/overview", {
+    params: { days }
+  });
+  const raw = data.data;
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Closed testing overview missing");
+  }
+  return {
+    timezone: String(raw.timezone ?? "Asia/Yangon"),
+    today: String(raw.today ?? ""),
+    days: Number(raw.days ?? days),
+    dateKeys: Array.isArray(raw.dateKeys) ? raw.dateKeys.map(String) : [],
+    dayLabels: Array.isArray(raw.dayLabels) ? raw.dayLabels.map(String) : [],
+    summary: {
+      invited: Number(raw.summary?.invited ?? 0),
+      activeToday: Number(raw.summary?.activeToday ?? 0),
+      activeInWindow: Number(raw.summary?.activeInWindow ?? 0),
+      inactive: Number(raw.summary?.inactive ?? 0)
+    },
+    daily: Array.isArray(raw.daily)
+      ? raw.daily.map((p) => ({
+          date: String(p.date ?? ""),
+          label: String(p.label ?? ""),
+          active: Number(p.active ?? 0)
+        }))
+      : [],
+    testers: Array.isArray(raw.testers)
+      ? raw.testers.map((t) => ({
+          id: Number(t.id),
+          email: String(t.email ?? ""),
+          shortName: String(t.shortName ?? ""),
+          status: String(t.status ?? ""),
+          lastActiveAt: t.lastActiveAt ? String(t.lastActiveAt) : null,
+          lastActiveLabel: t.lastActiveLabel ? String(t.lastActiveLabel) : null,
+          activeToday: Boolean(t.activeToday),
+          activeInWindow: Boolean(t.activeInWindow),
+          days: Array.isArray(t.days) ? t.days.map(Boolean) : []
+        }))
+      : []
+  };
+}
+
 export default api;

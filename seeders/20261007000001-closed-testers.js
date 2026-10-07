@@ -12,6 +12,7 @@ const TESTERS = [
   { email: 'kothetofficial@gmail.com', short_name: 'NYT-4' },
   { email: 'heinkhant33428@gmail.com', short_name: 'AHK' },
   { email: 'ayethandar6843@gmail.com', short_name: 'HZH' },
+  { email: 'thethtar6843@gmail.com', short_name: 'HZH-2' },
   { email: 'controlman222@gmail.com', short_name: 'NYT-5' },
 ];
 

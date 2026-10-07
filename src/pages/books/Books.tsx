@@ -106,7 +106,7 @@ const Books = () => {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const skipFilterResetRef = useRef(true);
 
   const buildBooksListSearch = (overrides?: {
@@ -158,12 +158,15 @@ const Books = () => {
   const availableParam =
     statusFilter === "all" ? undefined : statusFilter === "available";
 
+  // Only book name / release date are real column sorts. Everything else (and default) = newest id first.
   const sortBy =
     sortKey === "book_name"
       ? "bookName"
       : sortKey === "release_date"
         ? "releaseDate"
         : "bookId";
+  const sortDir: "asc" | "desc" =
+    sortKey === "book_name" || sortKey === "release_date" ? sortOrder : "desc";
 
   const loadBooks = useCallback(
     async (opts: { page: number; append?: boolean; showSpinner?: boolean }) => {
@@ -177,7 +180,7 @@ const Books = () => {
           q: debouncedQ || undefined,
           available: availableParam,
           sortBy,
-          sortDir: sortOrder
+          sortDir
         });
         const mapped = hydrateRows(result.items);
         setBooks((prev) =>
@@ -192,7 +195,7 @@ const Books = () => {
         setLoadingMore(false);
       }
     },
-    [availableParam, debouncedQ, limit, sortBy, sortOrder]
+    [availableParam, debouncedQ, limit, sortBy, sortDir]
   );
 
   const fetchAll = async (targetPage = 1) => {
@@ -482,13 +485,12 @@ const Books = () => {
         </div>
       )
     },
-    { key: "author_name" as const, title: "Author", sortable: true },
-    { key: "category_name" as const, title: "Category", sortable: true },
-    { key: "place" as const, title: "Place", sortable: true, render: (row: BookRow) => row.place || "-" },
+    { key: "author_name" as const, title: "Author" },
+    { key: "category_name" as const, title: "Category" },
+    { key: "place" as const, title: "Place", render: (row: BookRow) => row.place || "-" },
     {
       key: "status" as const,
       title: "Status",
-      sortable: true,
       headerCell: statusHeaderMenu,
       render: (row: BookRow) => (
         <span
@@ -506,7 +508,6 @@ const Books = () => {
     {
       key: "description" as const,
       title: "Description",
-      sortable: true,
       render: (row: BookRow) => (
         <div className="max-w-[220px]">
           <span className="block truncate" title={row.description || "-"}>

@@ -20,6 +20,12 @@ module.exports = (sequelize, DataTypes) => {
       description: {
         type: DataTypes.TEXT,
       },
+      contentType: {
+        type: DataTypes.ENUM('ebook', 'paper'),
+        allowNull: false,
+        defaultValue: 'ebook',
+        field: 'content_type',
+      },
       coverImage: {
         type: DataTypes.STRING(500),
         field: 'cover_image',

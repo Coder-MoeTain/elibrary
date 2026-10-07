@@ -49,6 +49,9 @@ export const api = axios.create({
   timeout: 15000
 });
 
+/** Multipart book/e-book uploads (PDF up to 100MB) — default 15s is too short. */
+const UPLOAD_REQUEST_TIMEOUT_MS = 180000;
+
 /** Short-lived requests for summary polling / cached reads on slow cloud hosts. */
 const summaryApi = axios.create({
   baseURL,
@@ -502,7 +505,13 @@ export type BookItem = {
 };
 
 export type AuthorOption = { author_id: number; author_name: string; country: string };
-export type CategoryOption = { category_id: number; category_name: string };
+export type CategoryOption = {
+  category_id: number;
+  category_name: string;
+  book_count?: number;
+  ebook_count?: number;
+  paper_count?: number;
+};
 
 function normalizeBook(raw: unknown): BookItem | null {
   const r = raw as Record<string, unknown>;
@@ -543,7 +552,13 @@ function normalizeCategory(raw: unknown): CategoryOption | null {
   const id = Number(r.categoryId ?? r.category_id);
   const name = String(r.categoryName ?? r.category_name ?? "");
   if (!id || !name) return null;
-  return { category_id: id, category_name: name };
+  return {
+    category_id: id,
+    category_name: name,
+    book_count: Number(r.bookCount ?? r.book_count ?? 0) || 0,
+    ebook_count: Number(r.ebookCount ?? r.ebook_count ?? 0) || 0,
+    paper_count: Number(r.paperCount ?? r.paper_count ?? 0) || 0
+  };
 }
 
 export async function getBooks(): Promise<BookItem[]> {
@@ -622,7 +637,10 @@ export async function createBook(payload: BookPayload): Promise<void> {
   if (payload.description) form.append("description", payload.description);
   if (payload.place) form.append("place", payload.place);
   if (payload.cover_file) form.append("cover", payload.cover_file);
-  await api.post("/books", form, { headers: { "Content-Type": "multipart/form-data" } });
+  await api.post("/books", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: UPLOAD_REQUEST_TIMEOUT_MS
+  });
 }
 
 export async function updateBook(id: number, payload: BookPayload): Promise<void> {
@@ -650,7 +668,10 @@ export async function updateBook(id: number, payload: BookPayload): Promise<void
   if (payload.description) form.append("description", payload.description);
   if (payload.place) form.append("place", payload.place);
   if (payload.cover_file) form.append("cover", payload.cover_file);
-  await api.put(`/books/${id}`, form, { headers: { "Content-Type": "multipart/form-data" } });
+  await api.put(`/books/${id}`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: UPLOAD_REQUEST_TIMEOUT_MS
+  });
 }
 
 export async function deleteBook(id: number): Promise<void> {
@@ -663,13 +684,18 @@ export async function getAuthors(): Promise<AuthorOption[]> {
   return rows.map(normalizeAuthor).filter((x): x is AuthorOption => x !== null);
 }
 
-export async function getCategories(): Promise<CategoryOption[]> {
-  const { data } = await api.get<ApiEnvelope<unknown[]>>("/categories");
+export async function getCategories(options?: {
+  counts?: boolean;
+}): Promise<CategoryOption[]> {
+  const params = options?.counts ? { counts: "true" } : undefined;
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/categories", { params });
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeCategory).filter((x): x is CategoryOption => x !== null);
 }
 
 /* ——— eBooks ——— */
+
+export type EbookContentType = "ebook" | "paper";
 
 export type EbookPayload = {
   ebook_name: string;
@@ -679,6 +705,7 @@ export type EbookPayload = {
   category_name?: string;
   release_date: string;
   description: string;
+  content_type?: EbookContentType;
   cover_file?: File | null;
   pdf_file?: File | null;
   cover_image?: string;
@@ -694,6 +721,7 @@ export type EbookItem = {
   category_id: number;
   release_date: string | null;
   description: string;
+  content_type: EbookContentType;
   cover_image: string;
   pdf_file: string;
   pdf_available: boolean;
@@ -708,6 +736,11 @@ function normalizeEbookSummaryStatus(raw: unknown): EbookSummaryStatus {
   const s = String(raw ?? "pending").trim().toLowerCase();
   if (s === "completed" || s === "processing" || s === "failed") return s;
   return "pending";
+}
+
+function normalizeEbookContentType(raw: unknown): EbookContentType {
+  const s = String(raw ?? "ebook").trim().toLowerCase();
+  return s === "paper" ? "paper" : "ebook";
 }
 
 export type FavoriteItem = {
@@ -733,6 +766,7 @@ function normalizeEbook(raw: unknown): EbookItem | null {
     category_id: categoryId,
     release_date: (r.releaseDate as string | null) ?? (r.release_date as string | null) ?? null,
     description: String(r.description ?? ""),
+    content_type: normalizeEbookContentType(r.contentType ?? r.content_type),
     cover_image: String(r.coverImage ?? r.cover_image ?? ""),
     pdf_file: rawPdf,
     pdf_available: Boolean(rawPdf),
@@ -744,9 +778,16 @@ function normalizeEbook(raw: unknown): EbookItem | null {
   };
 }
 
-export async function getEbooks(options?: { imported?: boolean }): Promise<EbookItem[]> {
-  const params = options?.imported ? { imported: "true" } : undefined;
-  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks", { params });
+export async function getEbooks(options?: {
+  imported?: boolean;
+  contentType?: EbookContentType;
+}): Promise<EbookItem[]> {
+  const params: Record<string, string> = {};
+  if (options?.contentType) params.contentType = options.contentType;
+  else if (options?.imported) params.imported = "true";
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks", {
+    params: Object.keys(params).length ? params : undefined
+  });
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
 }
@@ -793,6 +834,7 @@ export async function getEbooksPage(options?: {
   q?: string;
   category?: string;
   imported?: boolean;
+  contentType?: EbookContentType;
   status?: string;
 }): Promise<{
   items: EbookItem[];
@@ -807,7 +849,8 @@ export async function getEbooksPage(options?: {
   if (options?.limit) params.limit = options.limit;
   if (options?.q) params.q = options.q;
   if (options?.category) params.category = options.category;
-  if (options?.imported) params.imported = "true";
+  if (options?.contentType) params.contentType = options.contentType;
+  else if (options?.imported) params.imported = "true";
   if (options?.status) params.status = options.status;
 
   const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks", { params });
@@ -1007,14 +1050,15 @@ export async function createEbook(payload: EbookPayload): Promise<void> {
   }
   if (payload.release_date) form.append("releaseDate", payload.release_date);
   if (payload.description) form.append("description", payload.description);
+  const createType = payload.content_type ?? "ebook";
+  form.append("contentType", createType);
+  form.append("content_type", createType);
   if (payload.cover_file) form.append("cover", payload.cover_file);
   if (payload.pdf_file) form.append("pdf", payload.pdf_file);
-  for (const pair of form.entries()) {
-    // temporary debug for multipart payload
-    // eslint-disable-next-line no-console
-    console.log(pair[0], pair[1]);
-  }
-  await api.post("/ebooks", form, { headers: { "Content-Type": "multipart/form-data" } });
+  await api.post("/ebooks", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: UPLOAD_REQUEST_TIMEOUT_MS
+  });
 }
 
 export async function updateEbook(id: number, payload: EbookPayload): Promise<void> {
@@ -1040,9 +1084,16 @@ export async function updateEbook(id: number, payload: EbookPayload): Promise<vo
   }
   if (payload.release_date) form.append("releaseDate", payload.release_date);
   if (payload.description) form.append("description", payload.description);
+  if (payload.content_type) {
+    form.append("contentType", payload.content_type);
+    form.append("content_type", payload.content_type);
+  }
   if (payload.cover_file) form.append("cover", payload.cover_file);
   if (payload.pdf_file) form.append("pdf", payload.pdf_file);
-  await api.put(`/ebooks/${id}`, form, { headers: { "Content-Type": "multipart/form-data" } });
+  await api.put(`/ebooks/${id}`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: UPLOAD_REQUEST_TIMEOUT_MS
+  });
 }
 
 export async function deleteEbook(id: number): Promise<void> {
@@ -1063,6 +1114,38 @@ export async function updateCategory(id: number, payload: CategoryPayload): Prom
 
 export async function deleteCategory(id: number): Promise<void> {
   await api.delete(`/categories/${id}`);
+}
+
+export async function mergeCategories(payload: {
+  targetId: number;
+  sourceIds: number[];
+}): Promise<{
+  targetId: number;
+  targetName: string;
+  mergedIds: number[];
+  booksMoved: number;
+  ebooksMoved: number;
+}> {
+  const { data } = await api.post<
+    ApiEnvelope<{
+      targetId?: number;
+      targetName?: string;
+      mergedIds?: number[];
+      booksMoved?: number;
+      ebooksMoved?: number;
+    }>
+  >("/categories/merge", {
+    targetId: payload.targetId,
+    sourceIds: payload.sourceIds
+  });
+  const row = (data.data ?? {}) as Record<string, unknown>;
+  return {
+    targetId: Number(row.targetId) || payload.targetId,
+    targetName: String(row.targetName ?? ""),
+    mergedIds: Array.isArray(row.mergedIds) ? row.mergedIds.map(Number) : payload.sourceIds,
+    booksMoved: Number(row.booksMoved) || 0,
+    ebooksMoved: Number(row.ebooksMoved) || 0
+  };
 }
 
 /* ——— Authors CRUD ——— */
@@ -1623,81 +1706,5 @@ export async function deleteBackupFile(fileName: string): Promise<void> {
   await api.delete(`/settings/backups/${encodeURIComponent(fileName)}`);
 }
 
-export type ClosedTestingDailyPoint = {
-  date: string;
-  label: string;
-  active: number;
-};
-
-export type ClosedTestingTesterRow = {
-  id: number;
-  email: string;
-  shortName: string;
-  status: string;
-  lastActiveAt: string | null;
-  lastActiveLabel: string | null;
-  activeToday: boolean;
-  activeInWindow: boolean;
-  days: boolean[];
-};
-
-export type ClosedTestingOverview = {
-  timezone: string;
-  today: string;
-  days: number;
-  dateKeys: string[];
-  dayLabels: string[];
-  summary: {
-    invited: number;
-    activeToday: number;
-    activeInWindow: number;
-    inactive: number;
-  };
-  daily: ClosedTestingDailyPoint[];
-  testers: ClosedTestingTesterRow[];
-};
-
-export async function getClosedTestingOverview(days = 14): Promise<ClosedTestingOverview> {
-  const { data } = await api.get<ApiEnvelope<ClosedTestingOverview>>("/closed-testing/overview", {
-    params: { days }
-  });
-  const raw = data.data;
-  if (!raw || typeof raw !== "object") {
-    throw new Error("Closed testing overview missing");
-  }
-  return {
-    timezone: String(raw.timezone ?? "Asia/Yangon"),
-    today: String(raw.today ?? ""),
-    days: Number(raw.days ?? days),
-    dateKeys: Array.isArray(raw.dateKeys) ? raw.dateKeys.map(String) : [],
-    dayLabels: Array.isArray(raw.dayLabels) ? raw.dayLabels.map(String) : [],
-    summary: {
-      invited: Number(raw.summary?.invited ?? 0),
-      activeToday: Number(raw.summary?.activeToday ?? 0),
-      activeInWindow: Number(raw.summary?.activeInWindow ?? 0),
-      inactive: Number(raw.summary?.inactive ?? 0)
-    },
-    daily: Array.isArray(raw.daily)
-      ? raw.daily.map((p) => ({
-          date: String(p.date ?? ""),
-          label: String(p.label ?? ""),
-          active: Number(p.active ?? 0)
-        }))
-      : [],
-    testers: Array.isArray(raw.testers)
-      ? raw.testers.map((t) => ({
-          id: Number(t.id),
-          email: String(t.email ?? ""),
-          shortName: String(t.shortName ?? ""),
-          status: String(t.status ?? ""),
-          lastActiveAt: t.lastActiveAt ? String(t.lastActiveAt) : null,
-          lastActiveLabel: t.lastActiveLabel ? String(t.lastActiveLabel) : null,
-          activeToday: Boolean(t.activeToday),
-          activeInWindow: Boolean(t.activeInWindow),
-          days: Array.isArray(t.days) ? t.days.map(Boolean) : []
-        }))
-      : []
-  };
-}
-
 export default api;
+

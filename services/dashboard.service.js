@@ -1,7 +1,7 @@
 ﻿const { Op, QueryTypes } = require('sequelize');
 const { sequelize, Book, EBook, User, RentList } = require('../models');
 const { USER_STATUS } = require('../constants');
-const { importedClause } = require('./ebook.service');
+const { importedClause, ebookClause } = require('./ebook.service');
 const { getTimezone } = require('./settings.service');
 const {
   calendarDate,
@@ -36,7 +36,7 @@ async function getDashboardSummary() {
 
   const [totalBooks, totalEbooks, totalUsers, activeRentals, importedPapers, dailyRentCount, weeklyRentCount, monthlyRentCount, monthlyNewUsers] = await Promise.all([
     Book.count(),
-    EBook.count(),
+    EBook.count({ where: ebookClause() }),
     User.count(),
     RentList.count({ where: { returnDate: null } }),
     EBook.count({ where: importedClause() }),
@@ -136,7 +136,7 @@ async function getDashboardStats() {
 
   const [totalBooks, totalEbooks, totalUsers, monthlyRentals, importedPapers] = await Promise.all([
     Book.count(),
-    EBook.count(),
+    EBook.count({ where: ebookClause() }),
     User.count({ where: { status: USER_STATUS.APPROVED } }),
     RentList.count({ where: { rentDate: { [Op.gte]: monthStart } } }),
     EBook.count({ where: importedClause() }),
@@ -194,6 +194,7 @@ async function getEbooksByCategory() {
       SELECT c.category_name AS name, COUNT(e.eBooks_id) AS value
       FROM ebooks e
       INNER JOIN category c ON c.category_id = e.Category_category_id
+      WHERE e.content_type = 'ebook'
       GROUP BY c.category_id, c.category_name
       ORDER BY value DESC
     `,
@@ -251,6 +252,7 @@ async function getPopularEbooks() {
       SELECT e.eBook_name AS ebookName, COUNT(er.id) AS readCount
       FROM ebook_reads er
       INNER JOIN ebooks e ON e.eBooks_id = er.ebook_id
+      WHERE e.content_type = 'ebook'
       GROUP BY e.eBooks_id, e.eBook_name
       ORDER BY readCount DESC
       LIMIT 5

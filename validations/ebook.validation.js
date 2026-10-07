@@ -24,6 +24,8 @@ const create = [
   body('releaseDate').optional({ nullable: true }).isISO8601().toDate(),
   body('release_date').optional({ nullable: true }).isISO8601().toDate(),
   body('description').optional({ nullable: true }).isString(),
+  body('contentType').optional().isIn(['ebook', 'paper']),
+  body('content_type').optional().isIn(['ebook', 'paper']),
 ];
 
 const update = [
@@ -31,6 +33,8 @@ const update = [
   body('eBookName').optional().trim().notEmpty().isLength({ max: 255 }),
   body('releaseDate').optional({ nullable: true }).isISO8601().toDate(),
   body('description').optional({ nullable: true }).isString(),
+  body('contentType').optional().isIn(['ebook', 'paper']),
+  body('content_type').optional().isIn(['ebook', 'paper']),
   body('categoryId').optional().isInt({ min: 1 }),
   body('authorId').optional().isInt({ min: 1 }),
 ];

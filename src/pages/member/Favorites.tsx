@@ -85,7 +85,13 @@ const Favorites = () => {
               <Button
                 type="button"
                 className="mt-3 w-full justify-center"
-                onClick={() => navigate(`/member/ebooks/${favorite.ebook.ebook_id}`)}
+                onClick={() =>
+                  navigate(
+                    favorite.ebook.content_type === "paper"
+                      ? `/member/papers/${favorite.ebook.ebook_id}`
+                      : `/member/ebooks/${favorite.ebook.ebook_id}`
+                  )
+                }
               >
                 See Detail
               </Button>

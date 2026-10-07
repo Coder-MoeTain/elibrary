@@ -6,8 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { Op } = require('sequelize');
-const { EBook, Author, Category, sequelize } = require('../models');
+const { EBook, Author, sequelize } = require('../models');
 const { pregenerateCoverThumbs } = require('../utils/coverThumb');
+const categoryService = require('../services/category.service');
 
 const COVER_RENDER_DPI = '120';
 
@@ -530,13 +531,9 @@ async function findOrCreateAuthorAndCategory(author, category, transaction) {
     defaults: { authorName: author },
     transaction,
   });
-  const [categoryRow] = await Category.findOrCreate({
-    where: { categoryName: category },
-    defaults: { categoryName: category },
-    transaction,
-  });
+  const categoryId = await categoryService.resolveOrCreate(category, transaction);
 
-  return { authorId: authorRow.authorId, categoryId: categoryRow.categoryId };
+  return { authorId: authorRow.authorId, categoryId };
 }
 
 async function findExistingEbook(title, originalName) {
@@ -645,6 +642,7 @@ async function importPdf(filePath, opts, index) {
         eBookName: title,
         releaseDate: localDateString(),
         description: `${opts.description}: ${originalName}`,
+        contentType: 'ebook',
         pdfFile: `/uploads/eBooks/${pdfFileName}`,
         coverImage: coverImageForCreate,
         Author_Author_id: authorId,

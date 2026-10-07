@@ -5,6 +5,7 @@ const AppError = require('../utils/AppError');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 const { resolveSafeUploadPath } = require('../utils/uploadPath');
 const { deleteCoverThumbsForSource } = require('../utils/coverThumb');
+const categoryService = require('./category.service');
 
 const MAX_PAGE_LIMIT = 100;
 const DEFAULT_PAGE_LIMIT = 40;
@@ -102,8 +103,11 @@ const SORT_FIELDS = {
 
 function resolveSort(options = {}) {
   const key = SORT_FIELDS[String(options.sortBy || options.sort || 'bookId')] || 'bookId';
+  // Newest first by default (higher auto-increment id). Explicit sortDir still wins.
+  const rawDir = options.sortDir ?? options.order;
+  const defaultDir = key === 'bookId' ? 'desc' : 'asc';
   const dir =
-    String(options.sortDir || options.order || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+    String(rawDir ?? defaultDir).toLowerCase() === 'desc' ? 'DESC' : 'ASC';
   return [[key, dir]];
 }
 
@@ -148,13 +152,7 @@ async function create(body) {
     let categoryId = Number(pickCategoryId(body)) || 0;
     const categoryName = pickCategoryName(body).trim();
     if (!categoryId && categoryName) {
-      const existing = await Category.findOne({ where: { categoryName }, transaction });
-      if (existing) {
-        categoryId = existing.categoryId;
-      } else {
-        const created = await Category.create({ categoryName }, { transaction });
-        categoryId = created.categoryId;
-      }
+      categoryId = await categoryService.resolveOrCreate(categoryName, transaction);
     }
 
     if (!authorId || !categoryId) {
@@ -170,7 +168,7 @@ async function create(body) {
 async function findAll() {
   const [books, rentedIds] = await Promise.all([
     Book.findAll({
-      order: [['bookId', 'ASC']],
+      order: [['bookId', 'DESC']],
       include: ['category', 'author'],
     }),
     loadActiveRentedIdSet(),

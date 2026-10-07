@@ -128,7 +128,7 @@ const Ebooks = () => {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const skipFilterResetRef = useRef(true);
 
   const buildEbooksListSearch = (overrides?: {
@@ -508,12 +508,11 @@ const Ebooks = () => {
         </div>
       )
     },
-    { key: "author_name" as const, title: "Author", sortable: true },
-    { key: "category_name" as const, title: "Category", sortable: true },
+    { key: "author_name" as const, title: "Author" },
+    { key: "category_name" as const, title: "Category" },
     {
       key: "status" as const,
       title: "Status",
-      sortable: true,
       headerCell: statusHeaderMenu,
       render: (row: EbookRow) => (
         <span
@@ -526,7 +525,6 @@ const Ebooks = () => {
     {
       key: "description" as const,
       title: "Description",
-      sortable: true,
       render: (row: EbookRow) => (
         <div className="max-w-[220px]">
           <span className="block truncate" title={row.description || "-"}>

@@ -41,6 +41,9 @@ const PIE_COLORS = [
   "#f97316"
 ];
 
+/** Set true to show Books/eBooks category donut charts on the dashboard again. */
+const SHOW_CATEGORY_DONUT_CHARTS = false;
+
 type LoadState<T> = { loading: true } | { loading: false; data: T; error?: string };
 
 const panelMotion = {
@@ -174,7 +177,7 @@ const DashboardAnalytics = () => {
       <PanelShell
         title="Monthly rentals"
         subtitle="Rental volume over the last 12 months"
-        className="xl:col-span-2"
+        className={SHOW_CATEGORY_DONUT_CHARTS ? "xl:col-span-2" : "md:col-span-2 xl:col-span-4"}
         delay={0}
       >
         {rentalsMonthly.loading ? (
@@ -250,117 +253,121 @@ const DashboardAnalytics = () => {
         ) : null}
       </PanelShell>
 
-      <PanelShell title="Books by category" subtitle="Distribution of catalog" delay={0.05}>
-        {categories.loading ? (
-          <ChartSkeleton className="mx-auto h-[260px] max-w-[260px] rounded-full" />
-        ) : categories.error && !categories.data.length ? (
-          <p className="text-sm text-rose-600 dark:text-rose-400">{categories.error}</p>
-        ) : categories.data.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">No categorized books yet.</p>
-        ) : (
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35 }}
-            className="h-[260px] w-full min-w-0 overflow-visible [&_.recharts-wrapper]:!overflow-visible"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 28, right: 28, bottom: 8, left: 28 }}>
-                <Pie
-                  data={categories.data}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={78}
-                  paddingAngle={2}
-                  animationDuration={600}
-                  label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {categories.data.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value, _name, item) => {
-                    const n = Number(value ?? 0);
-                    const pct = ((n / categoryTotal) * 100).toFixed(1);
-                    const label =
-                      item && typeof item === "object" && "payload" in item && item.payload && typeof item.payload === "object"
-                        ? String((item.payload as { name?: string }).name ?? "")
-                        : "";
-                    return [`${n} books (${pct}%)`, label];
-                  }}
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid rgb(226 232 240)",
-                    background: "rgba(255,255,255,0.95)"
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: "12px", paddingTop: 8 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </motion.div>
-        )}
-      </PanelShell>
+      {SHOW_CATEGORY_DONUT_CHARTS ? (
+        <>
+          <PanelShell title="Books by category" subtitle="Distribution of catalog" delay={0.05}>
+            {categories.loading ? (
+              <ChartSkeleton className="mx-auto h-[260px] max-w-[260px] rounded-full" />
+            ) : categories.error && !categories.data.length ? (
+              <p className="text-sm text-rose-600 dark:text-rose-400">{categories.error}</p>
+            ) : categories.data.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">No categorized books yet.</p>
+            ) : (
+              <motion.div
+                initial={false}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.35 }}
+                className="h-[260px] w-full min-w-0 overflow-visible [&_.recharts-wrapper]:!overflow-visible"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart margin={{ top: 28, right: 28, bottom: 8, left: 28 }}>
+                    <Pie
+                      data={categories.data}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={52}
+                      outerRadius={78}
+                      paddingAngle={2}
+                      animationDuration={600}
+                      label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
+                      {categories.data.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, _name, item) => {
+                        const n = Number(value ?? 0);
+                        const pct = ((n / categoryTotal) * 100).toFixed(1);
+                        const label =
+                          item && typeof item === "object" && "payload" in item && item.payload && typeof item.payload === "object"
+                            ? String((item.payload as { name?: string }).name ?? "")
+                            : "";
+                        return [`${n} books (${pct}%)`, label];
+                      }}
+                      contentStyle={{
+                        borderRadius: "12px",
+                        border: "1px solid rgb(226 232 240)",
+                        background: "rgba(255,255,255,0.95)"
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", paddingTop: 8 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </motion.div>
+            )}
+          </PanelShell>
 
-      <PanelShell title="eBooks by category" subtitle="Distribution of digital catalog" delay={0.06}>
-        {ebooksCategories.loading ? (
-          <ChartSkeleton className="mx-auto h-[260px] max-w-[260px] rounded-full" />
-        ) : ebooksCategories.error && !ebooksCategories.data.length ? (
-          <p className="text-sm text-rose-600 dark:text-rose-400">{ebooksCategories.error}</p>
-        ) : ebooksCategories.data.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">No categorized eBooks yet.</p>
-        ) : (
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35 }}
-            className="h-[260px] w-full min-w-0 overflow-visible [&_.recharts-wrapper]:!overflow-visible"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 28, right: 28, bottom: 8, left: 28 }}>
-                <Pie
-                  data={ebooksCategories.data}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={78}
-                  paddingAngle={2}
-                  animationDuration={600}
-                  label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {ebooksCategories.data.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value, _name, item) => {
-                    const n = Number(value ?? 0);
-                    const pct = ((n / ebooksCategoryTotal) * 100).toFixed(1);
-                    const label =
-                      item && typeof item === "object" && "payload" in item && item.payload && typeof item.payload === "object"
-                        ? String((item.payload as { name?: string }).name ?? "")
-                        : "";
-                    return [`${n} eBooks (${pct}%)`, label];
-                  }}
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid rgb(226 232 240)",
-                    background: "rgba(255,255,255,0.95)"
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: "12px", paddingTop: 8 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </motion.div>
-        )}
-      </PanelShell>
+          <PanelShell title="eBooks by category" subtitle="Distribution of digital catalog" delay={0.06}>
+            {ebooksCategories.loading ? (
+              <ChartSkeleton className="mx-auto h-[260px] max-w-[260px] rounded-full" />
+            ) : ebooksCategories.error && !ebooksCategories.data.length ? (
+              <p className="text-sm text-rose-600 dark:text-rose-400">{ebooksCategories.error}</p>
+            ) : ebooksCategories.data.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">No categorized eBooks yet.</p>
+            ) : (
+              <motion.div
+                initial={false}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.35 }}
+                className="h-[260px] w-full min-w-0 overflow-visible [&_.recharts-wrapper]:!overflow-visible"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart margin={{ top: 28, right: 28, bottom: 8, left: 28 }}>
+                    <Pie
+                      data={ebooksCategories.data}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={52}
+                      outerRadius={78}
+                      paddingAngle={2}
+                      animationDuration={600}
+                      label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
+                      {ebooksCategories.data.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, _name, item) => {
+                        const n = Number(value ?? 0);
+                        const pct = ((n / ebooksCategoryTotal) * 100).toFixed(1);
+                        const label =
+                          item && typeof item === "object" && "payload" in item && item.payload && typeof item.payload === "object"
+                            ? String((item.payload as { name?: string }).name ?? "")
+                            : "";
+                        return [`${n} eBooks (${pct}%)`, label];
+                      }}
+                      contentStyle={{
+                        borderRadius: "12px",
+                        border: "1px solid rgb(226 232 240)",
+                        background: "rgba(255,255,255,0.95)"
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", paddingTop: 8 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </motion.div>
+            )}
+          </PanelShell>
+        </>
+      ) : null}
 
       {/* Popular books + eBooks (side by side on md+) */}
       <div className="grid grid-cols-1 gap-6 md:col-span-2 xl:col-span-4 md:grid-cols-2">

@@ -9,7 +9,6 @@ import Authors from "../pages/authors/Authors";
 import BookDetail from "../pages/books/BookDetail";
 import Books from "../pages/books/Books";
 import Categories from "../pages/categories/Categories";
-import ClosedTesting from "../pages/closedTesting/ClosedTesting";
 import Dashboard from "../pages/dashboard/Dashboard";
 import Departments from "../pages/departments/Departments";
 import AdminManagement from "../pages/admin/AdminManagement";
@@ -21,6 +20,7 @@ import MemberEbookDetail from "../pages/member/EbookDetail";
 import MemberEbooks from "../pages/member/Ebooks";
 import MemberFavorites from "../pages/member/Favorites";
 import MemberHome from "../pages/member/Home";
+import MemberResearchPapers from "../pages/member/ResearchPapers";
 import MemberSettings from "../pages/member/Settings";
 import RentList from "../pages/rent/RentList";
 import Settings from "../pages/settings/Settings";
@@ -61,7 +61,6 @@ const AppRoutes = () => {
       <Route element={<AdminLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="closed-testing" element={<ClosedTesting />} />
         <Route path="books" element={<Books />} />
         <Route path="books/:id" element={<BookDetail />} />
         <Route path="ebooks" element={<Ebooks />} />
@@ -92,6 +91,8 @@ const AppRoutes = () => {
         <Route path="books/:id" element={<MemberBookDetail />} />
         <Route path="ebooks" element={<MemberEbooks />} />
         <Route path="ebooks/:id" element={<MemberEbookDetail />} />
+        <Route path="papers" element={<MemberResearchPapers />} />
+        <Route path="papers/:id" element={<MemberEbookDetail />} />
         <Route path="favorites" element={<MemberFavorites />} />
         <Route path="settings" element={<MemberSettings />} />
       </Route>
@@ -103,3 +104,4 @@ const AppRoutes = () => {
 };
 
 export default AppRoutes;
+

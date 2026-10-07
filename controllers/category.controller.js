@@ -8,7 +8,10 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const list = asyncHandler(async (req, res) => {
-  const rows = await categoryService.findAll();
+  const withCounts = ['1', 'true', 'yes'].includes(String(req.query.counts ?? '').toLowerCase());
+  const rows = withCounts
+    ? await categoryService.findAllWithCounts()
+    : await categoryService.findAll();
   return success(res, { data: rows });
 });
 
@@ -27,4 +30,12 @@ const remove = asyncHandler(async (req, res) => {
   return noContent(res);
 });
 
-module.exports = { create, list, getById, update, remove };
+const merge = asyncHandler(async (req, res) => {
+  const result = await categoryService.merge({
+    targetId: req.body.targetId ?? req.body.target_id,
+    sourceIds: req.body.sourceIds ?? req.body.source_ids,
+  });
+  return success(res, { data: result, message: 'Categories merged' });
+});
+
+module.exports = { create, list, getById, update, remove, merge };

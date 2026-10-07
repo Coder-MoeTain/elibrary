@@ -13,6 +13,7 @@ function normalizeMultipartBody(req) {
   const categoryRaw = body.categoryId || body.category_id;
   const authorId = authorRaw !== undefined ? Number(authorRaw) : undefined;
   const categoryId = categoryRaw !== undefined ? Number(categoryRaw) : undefined;
+  const contentTypeRaw = body.contentType || body.content_type;
 
   return {
     eBookName: body.eBookName || body.ebookName || body.ebook_name || '',
@@ -22,6 +23,7 @@ function normalizeMultipartBody(req) {
     categoryId: Number.isFinite(categoryId) ? categoryId : undefined,
     releaseDate: body.releaseDate ?? body.release_date,
     description: body.description ?? undefined,
+    contentType: contentTypeRaw ? String(contentTypeRaw).trim().toLowerCase() : undefined,
     /** Never trust client-supplied paths — uploads only */
     pdfFile: pdf ? `/uploads/eBooks/${pdf}` : undefined,
     coverImage: cover ? `/uploads/covers/${cover}` : undefined,
@@ -38,8 +40,9 @@ const create = asyncHandler(async (req, res) => {
     return fail(res, 'Missing required fields', HTTP_STATUS.UNPROCESSABLE);
   }
   const row = await ebookService.create(body);
+  // Don't block the HTTP response on thumb generation (large research PDFs already take time to upload).
   if (body.coverImage) {
-    await pregenerateCoverThumbs(body.coverImage);
+    void pregenerateCoverThumbs(body.coverImage);
   }
   return created(res, row);
 });
@@ -57,11 +60,15 @@ const list = asyncHandler(async (req, res) => {
       q,
       category,
       imported: req.query.imported,
+      contentType: req.query.contentType ?? req.query.content_type,
       status: req.query.status ?? req.query.summaryStatus,
     });
     return success(res, { data: result.data, meta: result.pagination });
   }
-  const rows = await ebookService.findAll({ imported: req.query.imported });
+  const rows = await ebookService.findAll({
+    imported: req.query.imported,
+    contentType: req.query.contentType ?? req.query.content_type,
+  });
   return success(res, { data: rows });
 });
 
@@ -127,7 +134,7 @@ const update = asyncHandler(async (req, res) => {
   const body = normalizeMultipartBody(req);
   const row = await ebookService.update(req.params.id, body);
   if (body.coverImage) {
-    await pregenerateCoverThumbs(body.coverImage);
+    void pregenerateCoverThumbs(body.coverImage);
   }
   return success(res, { data: row, message: 'Updated' });
 });

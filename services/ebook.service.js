@@ -17,15 +17,64 @@ function getPdfParseLib() {
 }
 const AppError = require('../utils/AppError');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
+const categoryService = require('./category.service');
 
 const COLLECTOR_MARKER = 'Collector-Paper-ID:';
+const CONTENT_TYPE_EBOOK = 'ebook';
+const CONTENT_TYPE_PAPER = 'paper';
 
+function ebookClause() {
+  return { contentType: CONTENT_TYPE_EBOOK };
+}
+
+function paperClause() {
+  return { contentType: CONTENT_TYPE_PAPER };
+}
+
+/** @deprecated Prefer paperClause(); kept for callers that still import importedClause. */
 function importedClause() {
-  return { description: { [Op.like]: `%${COLLECTOR_MARKER}%` } };
+  return paperClause();
 }
 
 function wantsImported(value) {
   return ['1', 'true', 'yes'].includes(String(value ?? '').toLowerCase());
+}
+
+function normalizeContentType(raw) {
+  const s = String(raw ?? '').trim().toLowerCase();
+  if (s === CONTENT_TYPE_PAPER || s === 'imported' || s === 'research' || s === 'research_paper') {
+    return CONTENT_TYPE_PAPER;
+  }
+  if (s === CONTENT_TYPE_EBOOK || s === 'e-book' || s === 'ebooks') {
+    return CONTENT_TYPE_EBOOK;
+  }
+  return null;
+}
+
+/**
+ * Resolve catalog kind for create/update.
+ * Explicit contentType wins; otherwise Collector marker in description ⇒ paper.
+ */
+function resolveContentType(body, fallbackDescription = null) {
+  const explicit = normalizeContentType(body.contentType ?? body.content_type);
+  if (explicit) return explicit;
+  const desc = body.description !== undefined ? body.description : fallbackDescription;
+  if (desc != null && String(desc).includes(COLLECTOR_MARKER)) {
+    return CONTENT_TYPE_PAPER;
+  }
+  return CONTENT_TYPE_EBOOK;
+}
+
+/** List filter: imported=true / contentType=paper ⇒ papers only; otherwise catalog e-books only. */
+function contentTypeListClause(options = {}) {
+  const fromQuery = normalizeContentType(options.contentType ?? options.content_type);
+  if (fromQuery) return { contentType: fromQuery };
+  if (wantsImported(options.imported)) return paperClause();
+  return ebookClause();
+}
+
+function isPaperList(options = {}) {
+  return contentTypeListClause(options).contentType === CONTENT_TYPE_PAPER;
 }
 
 function escapeLike(value) {
@@ -61,6 +110,7 @@ function buildPayload(body, authorId, categoryId) {
     eBookName: body.eBookName,
     releaseDate: body.releaseDate ?? null,
     description: body.description ?? null,
+    contentType: resolveContentType(body),
     coverImage: body.coverImage ?? null,
     pdfFile: body.pdfFile ?? null,
     aiSummary: body.aiSummary ?? null,
@@ -442,13 +492,7 @@ async function resolveCategoryId(body, transaction) {
   let categoryId = Number(pickCategoryId(body)) || 0;
   const categoryName = pickCategoryName(body).trim();
   if (!categoryId && categoryName) {
-    const existing = await Category.findOne({ where: { categoryName }, transaction });
-    if (existing) {
-      categoryId = existing.categoryId;
-    } else {
-      const created = await Category.create({ categoryName }, { transaction });
-      categoryId = created.categoryId;
-    }
+    categoryId = await categoryService.resolveOrCreate(categoryName, transaction);
   }
   return categoryId;
 }
@@ -496,6 +540,7 @@ async function getMostPopularEbooks(limit = 5) {
     '(SELECT COUNT(*) FROM `ebook_reads` AS `er` WHERE `er`.`ebook_id` = `EBook`.`eBooks_id`)'
   );
   const rows = await EBook.findAll({
+    where: ebookClause(),
     limit,
     order: [
       [popularityExpr, 'DESC'],
@@ -508,6 +553,7 @@ async function getMostPopularEbooks(limit = 5) {
 
 async function getNewUploads(limit = 5) {
   const rows = await EBook.findAll({
+    where: ebookClause(),
     limit,
     order: [[col('EBook.created_at'), 'DESC']],
     include: ['category', 'author'],
@@ -516,11 +562,10 @@ async function getNewUploads(limit = 5) {
 }
 
 async function findAll(options = {}) {
-  const imported = wantsImported(options.imported);
-  const where = imported ? importedClause() : {};
+  const where = contentTypeListClause(options);
   const rows = await EBook.findAll({
     where,
-    order: [['eBooksId', imported ? 'DESC' : 'ASC']],
+    order: [['eBooksId', 'DESC']],
     include: ['category', 'author'],
   });
   const ids = rows.map((r) => r.eBooksId);
@@ -540,10 +585,7 @@ async function findPage(options = {}) {
   const category = String(options.category || '').trim();
   const status = String(options.status || options.summaryStatus || '').trim().toLowerCase();
 
-  const where = {};
-  if (wantsImported(options.imported)) {
-    Object.assign(where, importedClause());
-  }
+  const where = { ...contentTypeListClause(options) };
   if (status && ['pending', 'processing', 'completed', 'failed'].includes(status)) {
     where.summaryStatus = status;
   }
@@ -590,7 +632,7 @@ async function findPage(options = {}) {
     where,
     limit,
     offset,
-    order: [['eBooksId', wantsImported(options.imported) ? 'DESC' : 'ASC']],
+    order: [['eBooksId', 'DESC']],
     include: [categoryInclude, { association: 'author', required: false }],
     distinct: true,
     subQuery: false,
@@ -797,11 +839,21 @@ async function update(id, body) {
     oldCoverImage = row.coverImage;
     nextCoverImage = body.coverImage !== undefined ? body.coverImage : row.coverImage;
 
+    const nextDescription =
+      body.description !== undefined ? body.description : row.description;
+    let nextContentType = row.contentType || CONTENT_TYPE_EBOOK;
+    if (body.contentType !== undefined || body.content_type !== undefined) {
+      nextContentType = resolveContentType(body, nextDescription);
+    } else if (String(nextDescription || '').includes(COLLECTOR_MARKER)) {
+      nextContentType = CONTENT_TYPE_PAPER;
+    }
+
     await row.update(
       {
         eBookName: body.eBookName ?? row.eBookName,
         releaseDate: body.releaseDate !== undefined ? body.releaseDate : row.releaseDate,
-        description: body.description !== undefined ? body.description : row.description,
+        description: nextDescription,
+        contentType: nextContentType,
         coverImage: nextCoverImage,
         pdfFile: body.pdfFile !== undefined ? body.pdfFile : row.pdfFile,
         Category_category_id: categoryId,
@@ -866,6 +918,7 @@ async function findRecommendedForUser(userId) {
 
   const fallbackRecent = async (limit) => {
     const rows = await EBook.findAll({
+      where: ebookClause(),
       limit,
       order: [[col('EBook.created_at'), 'DESC']],
       include: ['category', 'author'],
@@ -922,7 +975,10 @@ async function findRecommendedForUser(userId) {
   const catArr = Array.from(categoryIds);
   const engagedArr = Array.from(engagedEbookIds);
 
-  const baseWhere = { Category_category_id: { [Op.in]: catArr } };
+  const baseWhere = {
+    Category_category_id: { [Op.in]: catArr },
+    ...ebookClause(),
+  };
 
   let rows = await EBook.findAll({
     where:
@@ -989,6 +1045,10 @@ module.exports = {
   update,
   remove,
   trackRead,
+  ebookClause,
+  paperClause,
   importedClause,
   wantsImported,
+  CONTENT_TYPE_EBOOK,
+  CONTENT_TYPE_PAPER,
 };

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Eye, GitMerge, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
@@ -10,24 +10,26 @@ import { Table } from "../../components/ui/Table";
 import PageHeader from "../../components/ui/PageHeader";
 import { isSuperAdmin, SUPER_ADMIN_ONLY_TOOLTIP } from "../../utils/auth";
 import {
-  BookItem,
   CategoryOption,
   CategoryPayload,
   createCategory,
   deleteCategory,
-  EbookItem,
   getApiErrorMessage,
-  getBooks,
   getCategories,
-  getEbooks,
+  mergeCategories,
   updateCategory
 } from "../../services/api";
+
+type CategoryScope = "all" | "books" | "ebooks" | "papers";
 
 type CategoryRow = Record<string, unknown> & {
   id: number;
   name: string;
   bookCount: number;
   ebookCount: number;
+  paperCount: number;
+  _select?: number;
+  _actions?: number;
 };
 
 type Toast = { kind: "success" | "error"; message: string } | null;
@@ -37,57 +39,46 @@ const actionClass =
 
 const emptyForm: CategoryPayload = { category_name: "" };
 
+const SCOPE_TABS: { id: CategoryScope; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "books", label: "Books" },
+  { id: "ebooks", label: "e-Books" },
+  { id: "papers", label: "Research Papers" }
+];
+
 const Categories = () => {
   const [rows, setRows] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState("");
+  const [scope, setScope] = useState<CategoryScope>("all");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [openForm, setOpenForm] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [openView, setOpenView] = useState(false);
+  const [openMerge, setOpenMerge] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selected, setSelected] = useState<CategoryRow | null>(null);
   const [form, setForm] = useState<CategoryPayload>(emptyForm);
   const [toast, setToast] = useState<Toast>(null);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(50);
 
-  const hydrateRows = (
-    list: CategoryOption[],
-    books: BookItem[],
-    ebooks: EbookItem[]
-  ): CategoryRow[] => {
-    const bookCountByCategory = new Map<number, number>();
-    for (const book of books) {
-      bookCountByCategory.set(
-        book.category_id,
-        (bookCountByCategory.get(book.category_id) ?? 0) + 1
-      );
-    }
-    const ebookCountByCategory = new Map<number, number>();
-    for (const ebook of ebooks) {
-      ebookCountByCategory.set(
-        ebook.category_id,
-        (ebookCountByCategory.get(ebook.category_id) ?? 0) + 1
-      );
-    }
-    return list.map((c) => ({
-      id: c.category_id,
-      name: c.category_name,
-      bookCount: bookCountByCategory.get(c.category_id) ?? 0,
-      ebookCount: ebookCountByCategory.get(c.category_id) ?? 0
-    }));
-  };
+  const toRow = (c: CategoryOption): CategoryRow => ({
+    id: c.category_id,
+    name: c.category_name,
+    bookCount: c.book_count ?? 0,
+    ebookCount: c.ebook_count ?? 0,
+    paperCount: c.paper_count ?? 0
+  });
 
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [categoryRows, bookRows, ebookRows] = await Promise.all([
-        getCategories(),
-        getBooks(),
-        getEbooks()
-      ]);
-      setRows(hydrateRows(categoryRows, bookRows, ebookRows));
+      const categoryRows = await getCategories({ counts: true });
+      setRows(categoryRows.map(toRow));
+      setSelectedIds(new Set());
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     } finally {
@@ -99,15 +90,27 @@ const Categories = () => {
     void fetchAll();
   }, []);
 
+  const scopeCounts = useMemo(() => {
+    const books = rows.filter((r) => r.bookCount > 0).length;
+    const ebooks = rows.filter((r) => r.ebookCount > 0).length;
+    const papers = rows.filter((r) => r.paperCount > 0).length;
+    return { all: rows.length, books, ebooks, papers };
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter((r) => String(r.name).toLowerCase().includes(s));
-  }, [rows, q]);
+    return rows.filter((r) => {
+      if (scope === "books" && r.bookCount <= 0) return false;
+      if (scope === "ebooks" && r.ebookCount <= 0) return false;
+      if (scope === "papers" && r.paperCount <= 0) return false;
+      if (!s) return true;
+      return String(r.name).toLowerCase().includes(s);
+    });
+  }, [rows, q, scope]);
 
   useEffect(() => {
     setPage(1);
-  }, [q]);
+  }, [q, scope]);
 
   const totalFiltered = filtered.length;
 
@@ -120,6 +123,35 @@ const Categories = () => {
     const tp = totalFiltered === 0 ? 1 : Math.ceil(totalFiltered / limit);
     if (page > tp) setPage(tp);
   }, [totalFiltered, limit, page]);
+
+  const pageIds = paginatedRows.map((r) => r.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const selectedRows = useMemo(
+    () => rows.filter((r) => selectedIds.has(r.id)),
+    [rows, selectedIds]
+  );
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -145,6 +177,21 @@ const Categories = () => {
   const startView = (row: CategoryRow) => {
     setSelected(row);
     setOpenView(true);
+  };
+
+  const startMerge = () => {
+    if (selectedRows.length < 2) {
+      setToast({ kind: "error", message: "Select at least 2 categories to merge." });
+      return;
+    }
+    const preferred =
+      selectedRows.slice().sort((a, b) => {
+        const totalA = a.bookCount + a.ebookCount + a.paperCount;
+        const totalB = b.bookCount + b.ebookCount + b.paperCount;
+        return totalB - totalA || a.name.localeCompare(b.name);
+      })[0];
+    setMergeTargetId(preferred?.id ?? selectedRows[0].id);
+    setOpenMerge(true);
   };
 
   const onSave = async (e: React.FormEvent) => {
@@ -184,12 +231,68 @@ const Categories = () => {
     }
   };
 
+  const onMerge = async () => {
+    if (!mergeTargetId || selectedRows.length < 2) return;
+    const sourceIds = selectedRows.map((r) => r.id).filter((id) => id !== mergeTargetId);
+    if (!sourceIds.length) {
+      setToast({ kind: "error", message: "Pick a keep category different from the ones being merged." });
+      return;
+    }
+    try {
+      setSaving(true);
+      const result = await mergeCategories({ targetId: mergeTargetId, sourceIds });
+      setToast({
+        kind: "success",
+        message: `Merged into "${result.targetName}" · ${result.booksMoved} book(s), ${result.ebooksMoved} e-book/paper(s) moved.`
+      });
+      setOpenMerge(false);
+      setMergeTargetId(null);
+      await fetchAll();
+    } catch (err) {
+      setToast({ kind: "error", message: getApiErrorMessage(err) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const searchPlaceholder =
+    scope === "books"
+      ? "Search categories used by Books…"
+      : scope === "ebooks"
+        ? "Search categories used by e-Books…"
+        : scope === "papers"
+          ? "Search categories used by Research Papers…"
+          : "Search all categories…";
+
   const columns = [
+    {
+      key: "_select" as const,
+      title: "Select",
+      headerCell: (
+        <input
+          type="checkbox"
+          checked={allPageSelected}
+          onChange={togglePage}
+          aria-label="Select page"
+          className="h-4 w-4 rounded border-slate-300"
+        />
+      ),
+      render: (row: CategoryRow) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(row.id)}
+          onChange={() => toggleOne(row.id)}
+          aria-label={`Select ${row.name}`}
+          className="h-4 w-4 rounded border-slate-300"
+        />
+      )
+    },
     { key: "name" as const, title: "Name" },
     { key: "bookCount" as const, title: "Books" },
     { key: "ebookCount" as const, title: "e-Books" },
+    { key: "paperCount" as const, title: "Research Papers" },
     {
-      key: "id" as const,
+      key: "_actions" as const,
       title: "Actions",
       render: (row: CategoryRow) => (
         <div className="flex flex-wrap gap-1">
@@ -221,11 +324,26 @@ const Categories = () => {
     <div className="space-y-6">
       <PageHeader
         title="Categories Management"
+        description="Filter by Books, e-Books, or Research Papers, then merge duplicates."
         actions={
-          <Button type="button" className="inline-flex items-center gap-2" onClick={startCreate}>
-            <Plus className="h-4 w-4" />
-            Add category
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isSuperAdmin() && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="inline-flex items-center gap-2"
+                onClick={startMerge}
+                disabled={selectedIds.size < 2}
+              >
+                <GitMerge className="h-4 w-4" />
+                Merge selected ({selectedIds.size})
+              </Button>
+            )}
+            <Button type="button" className="inline-flex items-center gap-2" onClick={startCreate}>
+              <Plus className="h-4 w-4" />
+              Add category
+            </Button>
+          </div>
         }
       />
 
@@ -241,16 +359,45 @@ const Categories = () => {
         </div>
       )}
 
+      <div className="flex flex-wrap gap-2">
+        {SCOPE_TABS.map((tab) => {
+          const count = scopeCounts[tab.id];
+          const active = scope === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setScope(tab.id)}
+              className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                active
+                  ? "border-primary bg-primary/10 text-primary dark:border-primary dark:bg-primary/20"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              }`}
+            >
+              {tab.label}
+              <span className="ml-2 text-xs opacity-70">{count.toLocaleString()}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search categories..."
+          placeholder={searchPlaceholder}
           className="pl-10"
           aria-label="Search categories"
         />
       </div>
+
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Showing {totalFiltered.toLocaleString()} categor
+        {totalFiltered === 1 ? "y" : "ies"}
+        {scope !== "all" ? ` in ${SCOPE_TABS.find((t) => t.id === scope)?.label}` : ""}
+        {selectedIds.size > 0 ? ` · ${selectedIds.size} selected` : ""}
+      </p>
 
       <motion.div initial={false} animate={{ opacity: 1 }} transition={{ delay: 0.02 }}>
         {loading ? (
@@ -306,6 +453,9 @@ const Categories = () => {
         <div className="space-y-4">
           <p className="text-sm text-slate-700 dark:text-slate-200">
             Are you sure you want to delete <span className="font-semibold">{selected?.name}</span>?
+            {(selected?.bookCount ?? 0) + (selected?.ebookCount ?? 0) + (selected?.paperCount ?? 0) > 0
+              ? " This category still has items — merge them first."
+              : ""}
           </p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpenDelete(false)}>
@@ -329,9 +479,52 @@ const Categories = () => {
           <p>
             <span className="font-semibold">e-Books:</span> {selected?.ebookCount}
           </p>
+          <p>
+            <span className="font-semibold">Research Papers:</span> {selected?.paperCount}
+          </p>
           <div className="flex justify-end">
             <Button type="button" variant="secondary" onClick={() => setOpenView(false)}>
               Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={openMerge} title="Merge categories" onClose={() => setOpenMerge(false)}>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-700 dark:text-slate-200">
+            All books, e-books, and research papers from the other selected categories will move into the
+            category you keep. The other categories will be deleted.
+          </p>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold text-slate-800 dark:text-white">Keep this category</legend>
+            {selectedRows.map((row) => (
+              <label
+                key={row.id}
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-600"
+              >
+                <input
+                  type="radio"
+                  name="merge-target"
+                  checked={mergeTargetId === row.id}
+                  onChange={() => setMergeTargetId(row.id)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-medium text-slate-800 dark:text-white">{row.name}</span>
+                  <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                    Books {row.bookCount} · e-Books {row.ebookCount} · Papers {row.paperCount}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setOpenMerge(false)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="danger" onClick={onMerge} disabled={saving || !mergeTargetId}>
+              {saving ? "Merging..." : "Merge"}
             </Button>
           </div>
         </div>

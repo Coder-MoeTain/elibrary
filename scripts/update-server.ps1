@@ -17,7 +17,7 @@
 
 param(
     [string]$Server = 'admin2026@192.168.11.20',
-    [string]$RemoteDir = '/var/www/elibrary/library_Management_System',
+    [string]$RemoteDir = '/var/www/elibrary',
     [string]$Pm2Name = 'elibrary',
     [switch]$SkipNpm,
     [switch]$SkipBuild,
@@ -163,24 +163,39 @@ fi
 
 $fixPermsHelper
 $npmBlock
+echo "[migrate] database"
+npm run migrate
 $buildBlock
 
-if command -v pm2 >/dev/null 2>&1; then
-  if pm2 describe "`$PM2_NAME" >/dev/null 2>&1; then
-    pm2 restart "`$PM2_NAME"
-  else
-    pm2 start server.js --name "`$PM2_NAME"
+# Production serves via root PM2 (pm2-root.service). Prefer restarting that so new code loads.
+echo "[pm2] restarting app"
+if sudo -n true 2>/dev/null; then
+  if sudo pm2 describe "`$PM2_NAME" >/dev/null 2>&1; then
+    sudo pm2 restart "`$PM2_NAME" --update-env
+    sudo pm2 save || true
+  elif systemctl list-units --type=service --all 2>/dev/null | grep -q 'pm2-root.service'; then
+    sudo systemctl restart pm2-root
   fi
-  pm2 save || true
-  echo ''
-  echo '=== pm2 ==='
-  pm2 list
-  echo ''
-  echo '=== health ==='
-  curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:3000/ || true
+  echo '=== pm2 (root) ==='
+  sudo pm2 list || true
 else
-  echo '[WARN] pm2 not found — start manually: node server.js'
+  echo '[WARN] passwordless sudo unavailable — trying user pm2'
+  if command -v pm2 >/dev/null 2>&1; then
+    if pm2 describe "`$PM2_NAME" >/dev/null 2>&1; then
+      pm2 restart "`$PM2_NAME"
+    else
+      pm2 start server.js --name "`$PM2_NAME"
+    fi
+    pm2 save || true
+  fi
+  echo '=== pm2 (user) ==='
+  pm2 list || true
+  echo '[WARN] If port 3000 is held by root node, run: sudo pm2 restart elibrary'
 fi
+
+echo ''
+echo '=== health ==='
+curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:3000/ || true
 
 echo ''
 echo '[OK] Updated. Open: http://192.168.11.20:3000'

@@ -7,6 +7,15 @@ const categoryValidation = require('../validations/category.validation');
 const router = Router();
 
 router.get('/', authenticate, categoryController.list);
+router.post(
+  '/merge',
+  authenticate,
+  requireAdmin,
+  requireSuperAdmin,
+  categoryValidation.merge,
+  validate,
+  categoryController.merge
+);
 router.get('/:id', authenticate, categoryValidation.idParam, validate, categoryController.getById);
 router.post('/', authenticate, requireAdmin, categoryValidation.create, validate, categoryController.create);
 router.put('/:id', authenticate, requireAdmin, categoryValidation.update, validate, categoryController.update);

@@ -74,9 +74,10 @@ const Books = () => {
     let cancelled = false;
     const loadCategories = async () => {
       try {
-        const cats = await getCategories();
+        const cats = await getCategories({ counts: true });
         if (cancelled) return;
         const names = cats
+          .filter((c: CategoryOption) => (c.book_count ?? 0) > 0)
           .map((c: CategoryOption) => c.category_name)
           .filter(Boolean)
           .sort((a, b) => a.localeCompare(b));
@@ -101,7 +102,9 @@ const Books = () => {
           limit: PAGE_SIZE,
           q: debouncedQ || undefined,
           category:
-            selectedCategory === "All Categories" ? undefined : selectedCategory
+            selectedCategory === "All Categories" ? undefined : selectedCategory,
+          sortBy: "bookId",
+          sortDir: "desc"
         });
         if (cancelled) return;
         setRows(result.items.map(mapBook));

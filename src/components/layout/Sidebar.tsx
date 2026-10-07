@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
 import {
-  Activity,
   BookMarked,
   BookOpen,
   Building2,
   ClipboardList,
   FileDown,
+  FileText,
   FolderTree,
   Heart,
   House,
@@ -20,7 +20,6 @@ import { isSuperAdmin } from "../../utils/auth";
 
 const nav = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/closed-testing", label: "Closed Testing", icon: Activity },
   { to: "/admin/books", label: "Books", icon: BookOpen },
   { to: "/admin/ebooks", label: "e-Books", icon: BookMarked },
   { to: "/admin/imports", label: "Imported papers", icon: FileDown },
@@ -36,6 +35,7 @@ const memberNav = [
   { to: "/member/home", label: "Home", icon: House },
   { to: "/member/books", label: "Books", icon: BookOpen },
   { to: "/member/ebooks", label: "e-Books", icon: BookMarked },
+  { to: "/member/papers", label: "Research Papers", icon: FileText },
   { to: "/member/favorites", label: "My Favorites", icon: Heart },
   { to: "/member/settings", label: "Settings", icon: Settings }
 ];
@@ -102,3 +102,4 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
 };
 
 export default Sidebar;
+

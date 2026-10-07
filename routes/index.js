@@ -12,9 +12,10 @@ router.use('/users', require('./user.routes'));
 router.use('/admins', require('./admin.routes'));
 router.use('/admin', require('./adminPanel.routes'));
 router.use('/dashboard', require('./dashboard.routes'));
-router.use('/closed-testing', require('./closedTesting.routes'));
 router.use('/rent', require('./rent.routes'));
 router.use('/favorites', require('./favorite.routes'));
 router.use('/settings', require('./settings.routes'));
 
 module.exports = router;
+
+

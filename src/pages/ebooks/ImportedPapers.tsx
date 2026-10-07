@@ -1,4 +1,4 @@
-import { Eye, Pencil, RefreshCw, Search } from "lucide-react";
+import { Eye, Pencil, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
@@ -9,6 +9,7 @@ import SearchableSelect from "../../components/ui/SearchableSelect";
 import TablePagination from "../../components/ui/TablePagination";
 import { Table } from "../../components/ui/Table";
 import PageHeader from "../../components/ui/PageHeader";
+import Tooltip from "../../components/ui/Tooltip";
 import { useTimezone } from "../../context/TimezoneContext";
 import {
   ADMIN_CATALOG_LIST_RETURN_KEY,
@@ -16,11 +17,13 @@ import {
   buildQueryString,
   parsePositiveInt
 } from "../../utils/adminListReturn";
+import { isSuperAdmin, SUPER_ADMIN_ONLY_TOOLTIP } from "../../utils/auth";
 import {
   AuthorOption,
   CategoryOption,
   EbookItem,
   EbookPayload,
+  deleteEbook,
   getApiErrorMessage,
   getAuthors,
   getCategories,
@@ -86,6 +89,8 @@ const ImportedPapers = () => {
   const [toast, setToast] = useState<Toast>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [openForm, setOpenForm] = useState(false);
+  const [openDelete, setOpenDelete] = useState(false);
+  const [selected, setSelected] = useState<ImportRow | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<EbookPayload>(emptyForm);
   const [authorQuery, setAuthorQuery] = useState("");
@@ -157,7 +162,7 @@ const ImportedPapers = () => {
           page: targetPage,
           limit: PAGE_SIZE,
           q: debouncedQ || undefined,
-          imported: true
+          contentType: "paper"
         });
         setRows(
           result.items.map((item: EbookItem) => ({
@@ -216,6 +221,29 @@ const ImportedPapers = () => {
     setCategoryQuery(row.category_name === "—" ? "" : row.category_name);
     setEditingId(row.id);
     setOpenForm(true);
+  };
+
+  const startDelete = (row: ImportRow) => {
+    setSelected(row);
+    setOpenDelete(true);
+  };
+
+  const onDelete = async () => {
+    if (!selected) return;
+    try {
+      setSaving(true);
+      await deleteEbook(selected.id);
+      setToast({ kind: "success", message: "Imported paper deleted successfully." });
+      setOpenDelete(false);
+      setSelected(null);
+      const nextPage = Math.min(page, Math.max(1, Math.ceil((total - 1) / PAGE_SIZE)));
+      if (nextPage !== page) updateListParams({ page: nextPage });
+      else await load({ targetPage: nextPage });
+    } catch (err) {
+      setToast({ kind: "error", message: getApiErrorMessage(err) });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onSave = async (e: React.FormEvent) => {
@@ -302,6 +330,19 @@ const ImportedPapers = () => {
           <button type="button" className={actionClass} title="Edit" onClick={() => startEdit(row)}>
             <Pencil className="h-4 w-4" />
           </button>
+          <Tooltip text={!isSuperAdmin() ? SUPER_ADMIN_ONLY_TOOLTIP : "Delete imported paper"}>
+            <span className="inline-flex">
+              <button
+                type="button"
+                className={`${actionClass} ${!isSuperAdmin() ? "cursor-not-allowed opacity-45" : ""}`}
+                title="Delete"
+                disabled={!isSuperAdmin()}
+                onClick={() => isSuperAdmin() && startDelete(row)}
+              >
+                <Trash2 className="h-4 w-4 text-rose-500" />
+              </button>
+            </span>
+          </Tooltip>
         </div>
       )
     }
@@ -473,6 +514,22 @@ const ImportedPapers = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={openDelete} title="Delete imported paper" onClose={() => setOpenDelete(false)}>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-700 dark:text-slate-200">
+            Are you sure you want to delete <span className="font-semibold">{selected?.title}</span>?
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setOpenDelete(false)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="danger" onClick={onDelete} disabled={saving}>
+              {saving ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

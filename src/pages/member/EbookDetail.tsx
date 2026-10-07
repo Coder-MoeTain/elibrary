@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import { EBOOKS_LIST_STATE_KEY } from "./Ebooks";
+import { PAPERS_LIST_STATE_KEY } from "./ResearchPapers";
 import {
   ADMIN_CATALOG_LIST_RETURN_KEY
 } from "../../utils/adminListReturn";
@@ -42,19 +43,29 @@ const EbookDetail = () => {
   const location = useLocation();
   const ebookId = Number(id);
   const isAdmin = location.pathname.startsWith("/admin");
-  const ebooksListPath = isAdmin ? "/admin/ebooks" : "/member/ebooks";
+  const isMemberPapers = location.pathname.startsWith("/member/papers");
+  const isAdminImports = location.pathname.startsWith("/admin/imports");
+  const catalogListPath = isAdmin
+    ? "/admin/ebooks"
+    : isMemberPapers
+      ? "/member/papers"
+      : "/member/ebooks";
+  const listStateKey = isMemberPapers ? PAPERS_LIST_STATE_KEY : EBOOKS_LIST_STATE_KEY;
   const listReturnTo =
     (location.state as { listReturnTo?: string; ebooksListSearch?: string } | null)?.listReturnTo ??
     (isAdmin ? sessionStorage.getItem(ADMIN_CATALOG_LIST_RETURN_KEY) : null) ??
     "";
   const ebooksListSearch =
     (location.state as { ebooksListSearch?: string } | null)?.ebooksListSearch ??
-    sessionStorage.getItem(EBOOKS_LIST_STATE_KEY) ??
+    sessionStorage.getItem(listStateKey) ??
     "";
-  const backToEbooksPath = listReturnTo || `${ebooksListPath}${ebooksListSearch}`;
-  const backLabel = listReturnTo.startsWith("/admin/imports")
+  const backToCatalogPath = listReturnTo || `${catalogListPath}${ebooksListSearch}`;
+  const backLabel = listReturnTo.startsWith("/admin/imports") || isAdminImports
     ? "Back to Imported papers"
-    : "Back to e-Books";
+    : isMemberPapers
+      ? "Back to Research Papers"
+      : "Back to e-Books";
+  const itemLabel = isMemberPapers || isAdminImports ? "Research paper" : "e-Book";
   const [book, setBook] = useState<EbookItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackingRead, setTrackingRead] = useState(false);
@@ -127,7 +138,7 @@ const EbookDetail = () => {
 
   const handleRead = async () => {
     if (!book?.pdf_available) {
-      setToast({ kind: "error", message: "No PDF available for this e-book." });
+      setToast({ kind: "error", message: `No PDF available for this ${itemLabel.toLowerCase()}.` });
       return;
     }
     try {
@@ -150,11 +161,11 @@ const EbookDetail = () => {
 
   const handleDownload = async () => {
     if (!book?.pdf_available) {
-      setToast({ kind: "error", message: "No PDF available for this e-book." });
+      setToast({ kind: "error", message: `No PDF available for this ${itemLabel.toLowerCase()}.` });
       return;
     }
     try {
-      await downloadEbookPdf(book.ebook_id, book.ebook_name || "ebook");
+      await downloadEbookPdf(book.ebook_id, book.ebook_name || "document");
     } catch (err) {
       setToast({ kind: "error", message: getApiErrorMessage(err) });
     }
@@ -201,7 +212,7 @@ const EbookDetail = () => {
   if (loading) {
     return (
       <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-8 text-center text-sm text-slate-500 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-        Loading e-book detail...
+        Loading {itemLabel.toLowerCase()} detail...
       </div>
     );
   }
@@ -210,14 +221,14 @@ const EbookDetail = () => {
     return (
       <div className="space-y-4">
         <Link
-          to={backToEbooksPath}
+          to={backToCatalogPath}
           className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           {backLabel}
         </Link>
         <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-8 text-center text-sm text-slate-500 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-          e-Book not found.
+          {itemLabel} not found.
         </div>
       </div>
     );
@@ -229,7 +240,7 @@ const EbookDetail = () => {
   return (
     <div className="space-y-6">
       <Link
-        to={backToEbooksPath}
+        to={backToCatalogPath}
         className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />

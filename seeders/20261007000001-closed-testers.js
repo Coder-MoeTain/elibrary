@@ -3,7 +3,7 @@
 const TESTERS = [
   { email: 'aungmawwunna@gmail.com', short_name: 'Wunna' },
   { email: 'lha74901@gmail.com', short_name: 'LHA' },
-  { email: 'shanehtet2019.sha@gmail.com', short_name: 'SHA' },
+  { email: 'thazinhtoo2007.tzh@gmail.com', short_name: 'SHA' },
   { email: 'hnin84163@gmail.com', short_name: 'PWA-1' },
   { email: 'zar971269@gmail.com', short_name: 'PWA-2' },
   { email: 'nayye0958@gmail.com', short_name: 'NYT-1' },

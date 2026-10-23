@@ -885,20 +885,26 @@ export async function getEbooksPage(options?: {
 }
 
 /** Member-only: categories inferred from reads + favorites, else recent catalog. */
-export async function getRecommendedEbooks(): Promise<EbookItem[]> {
-  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks/recommended");
+export async function getRecommendedEbooks(limit = 30): Promise<EbookItem[]> {
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks/recommended", {
+    params: { limit }
+  });
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
 }
 
-export async function getMostPopularEbooks(): Promise<EbookItem[]> {
-  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks/most-popular");
+export async function getMostPopularEbooks(limit = 30): Promise<EbookItem[]> {
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks/most-popular", {
+    params: { limit }
+  });
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
 }
 
-export async function getNewUploads(): Promise<EbookItem[]> {
-  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks/new-uploads");
+export async function getNewUploads(limit = 30): Promise<EbookItem[]> {
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks/new-uploads", {
+    params: { limit }
+  });
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
 }

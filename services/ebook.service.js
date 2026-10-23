@@ -535,7 +535,7 @@ async function toRowsWithReadCount(rows) {
 }
 
 /** Order by aggregate read count (ebook_reads); read_count is not a column on eBooks. */
-async function getMostPopularEbooks(limit = 5) {
+async function getMostPopularEbooks(limit = 30) {
   const popularityExpr = literal(
     '(SELECT COUNT(*) FROM `ebook_reads` AS `er` WHERE `er`.`ebook_id` = `EBook`.`eBooks_id`)'
   );
@@ -551,7 +551,7 @@ async function getMostPopularEbooks(limit = 5) {
   return toRowsWithReadCount(rows);
 }
 
-async function getNewUploads(limit = 5) {
+async function getNewUploads(limit = 30) {
   const rows = await EBook.findAll({
     where: ebookClause(),
     limit,
@@ -900,11 +900,12 @@ async function remove(id) {
  * Personalized picks from categories the user reads or favorites; excludes already-read/favorited
  * titles when possible; falls back to recent catalog when there is no signal or no matches.
  */
-async function findRecommendedForUser(userId) {
+async function findRecommendedForUser(userId, limit = 30) {
   const uid = Number(userId);
   if (!Number.isInteger(uid) || uid < 1) {
     throw new AppError('Invalid user id', HTTP_STATUS.BAD_REQUEST);
   }
+  const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 60);
 
   const attachReadCounts = async (rows) => {
     const ids = rows.map((r) => r.eBooksId);
@@ -916,10 +917,10 @@ async function findRecommendedForUser(userId) {
     });
   };
 
-  const fallbackRecent = async (limit) => {
+  const fallbackRecent = async (take) => {
     const rows = await EBook.findAll({
       where: ebookClause(),
-      limit,
+      limit: take,
       order: [[col('EBook.created_at'), 'DESC']],
       include: ['category', 'author'],
     });
@@ -969,7 +970,7 @@ async function findRecommendedForUser(userId) {
   });
 
   if (categoryIds.size === 0) {
-    return fallbackRecent(8);
+    return fallbackRecent(safeLimit);
   }
 
   const catArr = Array.from(categoryIds);
@@ -985,7 +986,7 @@ async function findRecommendedForUser(userId) {
       engagedArr.length > 0
         ? { ...baseWhere, eBooksId: { [Op.notIn]: engagedArr } }
         : baseWhere,
-    limit: 12,
+    limit: safeLimit,
     order: [[col('EBook.created_at'), 'DESC']],
     include: ['category', 'author'],
   });
@@ -993,14 +994,29 @@ async function findRecommendedForUser(userId) {
   if (rows.length === 0) {
     rows = await EBook.findAll({
       where: baseWhere,
-      limit: 12,
+      limit: safeLimit,
       order: [[col('EBook.created_at'), 'DESC']],
       include: ['category', 'author'],
     });
   }
 
   if (rows.length === 0) {
-    return fallbackRecent(8);
+    return fallbackRecent(safeLimit);
+  }
+
+  // Pad with recent catalog if category matches are fewer than requested.
+  if (rows.length < safeLimit) {
+    const have = new Set(rows.map((r) => r.eBooksId));
+    const extra = await EBook.findAll({
+      where: {
+        ...ebookClause(),
+        eBooksId: { [Op.notIn]: Array.from(have) },
+      },
+      limit: safeLimit - rows.length,
+      order: [[col('EBook.created_at'), 'DESC']],
+      include: ['category', 'author'],
+    });
+    rows = rows.concat(extra);
   }
 
   return attachReadCounts(rows);

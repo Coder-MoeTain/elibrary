@@ -73,17 +73,20 @@ const list = asyncHandler(async (req, res) => {
 });
 
 const recommended = asyncHandler(async (req, res) => {
-  const rows = await ebookService.findRecommendedForUser(req.user.id);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
+  const rows = await ebookService.findRecommendedForUser(req.user.id, limit);
   return success(res, { data: rows });
 });
 
 const mostPopular = asyncHandler(async (req, res) => {
-  const rows = await ebookService.getMostPopularEbooks(5);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
+  const rows = await ebookService.getMostPopularEbooks(limit);
   return success(res, { data: rows });
 });
 
 const newUploads = asyncHandler(async (req, res) => {
-  const rows = await ebookService.getNewUploads(5);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
+  const rows = await ebookService.getNewUploads(limit);
   return success(res, { data: rows });
 });
 

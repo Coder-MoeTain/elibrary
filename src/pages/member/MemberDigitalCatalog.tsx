@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Eye, Heart, LayoutGrid, List, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
@@ -98,6 +98,7 @@ const MemberDigitalCatalog = ({
 }: MemberDigitalCatalogProps) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const catalogScrollRef = useRef<HTMLDivElement>(null);
   const [rows, setRows] = useState<EbookItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryOptions, setCategoryOptions] = useState<string[]>(["All Categories"]);
@@ -112,6 +113,12 @@ const MemberDigitalCatalog = ({
   const selectedCategory = searchParams.get("category") ?? "All Categories";
   const viewMode: ViewMode = searchParams.get("view") === "list" ? "list" : "grid";
   const listSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
+
+  useEffect(() => {
+    catalogScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    const main = document.querySelector("main");
+    if (main instanceof HTMLElement) main.scrollTo({ top: 0, behavior: "auto" });
+  }, [page, limit, viewMode]);
 
   const updateListParams = (
     patch: Partial<{ page: number; limit: number; q: string; category: string; view: ViewMode }>
@@ -360,7 +367,7 @@ const MemberDigitalCatalog = ({
       </div>
 
       {loading ? (
-        <div className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
+        <div ref={catalogScrollRef} className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
           <div className={GRID_CLASS}>
             {Array.from({ length: Math.min(limit, DEFAULT_LIMIT) }, (_, i) => i).map((item) => (
               <div key={item} className={`${CARD_CLASS} animate-pulse`}>
@@ -380,7 +387,7 @@ const MemberDigitalCatalog = ({
         </div>
       ) : viewMode === "grid" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <div className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
+          <div ref={catalogScrollRef} className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
             <div className={GRID_CLASS}>
               {rows.map((book, idx) => (
                 <motion.div
@@ -463,7 +470,7 @@ const MemberDigitalCatalog = ({
           />
         </div>
       ) : (
-        <div className="min-h-0 flex-1 space-y-3 overflow-auto">
+        <div ref={catalogScrollRef} className="min-h-0 flex-1 space-y-3 overflow-auto">
           <Table<EbookRow> columns={columns} data={tableRows} emptyMessage={emptyMessage} />
           <TablePagination
             className="mt-0"

@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Eye, LayoutGrid, List, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
@@ -63,6 +63,7 @@ function mapBook(b: BookItem): BookRow {
 
 const Books = () => {
   const navigate = useNavigate();
+  const catalogScrollRef = useRef<HTMLDivElement>(null);
   const [rows, setRows] = useState<BookRow[]>([]);
   const [categories, setCategories] = useState<string[]>(["All Categories"]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +75,12 @@ const Books = () => {
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [total, setTotal] = useState(0);
   const [toast, setToast] = useState<Toast>(null);
+
+  useEffect(() => {
+    catalogScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    const main = document.querySelector("main");
+    if (main instanceof HTMLElement) main.scrollTo({ top: 0, behavior: "auto" });
+  }, [page, limit, viewMode]);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(q.trim()), 350);
@@ -328,7 +335,7 @@ const Books = () => {
       </div>
 
       {loading ? (
-        <div className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
+        <div ref={catalogScrollRef} className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
           <div className={GRID_CLASS}>
             {Array.from({ length: Math.min(limit, DEFAULT_LIMIT) }, (_, i) => i).map((n) => (
               <div key={n} className={`${CARD_CLASS} animate-pulse`}>
@@ -347,7 +354,7 @@ const Books = () => {
         </div>
       ) : viewMode === "grid" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <div className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
+          <div ref={catalogScrollRef} className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
             <div className={GRID_CLASS}>
               {rows.map((row) => (
                 <BookCard key={row.id} row={row} />
@@ -368,7 +375,7 @@ const Books = () => {
           />
         </div>
       ) : (
-        <div className="min-h-0 flex-1 space-y-3 overflow-auto">
+        <div ref={catalogScrollRef} className="min-h-0 flex-1 space-y-3 overflow-auto">
           <Table<BookRow> columns={columns} data={rows} emptyMessage="No books found in this category." />
           <TablePagination
             className="mt-0"

@@ -42,15 +42,25 @@ function catalogGridClass(compact: boolean): string {
 
 function catalogCardClass(compact: boolean): string {
   return [
-    "relative flex h-full min-h-0 flex-col border border-slate-200/60 bg-white/70 shadow-md backdrop-blur-md transition hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/70",
+    "relative flex h-full min-h-0 flex-col items-stretch border border-slate-200/60 bg-white/70 shadow-md backdrop-blur-md transition hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/70",
     compact ? "rounded-lg p-1" : "rounded-xl p-2"
   ].join(" ");
 }
 
-function catalogCoverClass(compact: boolean): string {
+/** Portrait book cover: always vertical 3:4, centered in the cell. */
+function catalogCoverShellClass(compact: boolean): string {
   return [
-    "min-h-0 flex-1 overflow-hidden bg-slate-100 aspect-[3/4] lg:aspect-auto dark:bg-slate-700/70",
-    compact ? "mb-1 rounded-md" : "mb-1.5 rounded-lg"
+    "flex min-h-0 flex-1 items-center justify-center overflow-hidden",
+    compact ? "mb-1" : "mb-1.5"
+  ].join(" ");
+}
+
+function catalogCoverFrameClass(compact: boolean): string {
+  return [
+    // Mobile: width-first portrait. Desktop: height-first so covers stay vertical columns in short rows.
+    "aspect-[3/4] w-full max-h-full overflow-hidden bg-slate-100 dark:bg-slate-700/70",
+    "lg:h-full lg:w-auto lg:max-w-full",
+    compact ? "rounded-md" : "rounded-lg"
   ].join(" ");
 }
 
@@ -130,7 +140,8 @@ const MemberDigitalCatalog = ({
   const compactCards = limit >= 24;
   const gridClass = catalogGridClass(compactCards);
   const cardClass = catalogCardClass(compactCards);
-  const coverClass = catalogCoverClass(compactCards);
+  const coverShellClass = catalogCoverShellClass(compactCards);
+  const coverFrameClass = catalogCoverFrameClass(compactCards);
   const gridStyle = { ["--catalog-rows" as string]: String(desktopRows) };
 
   const listSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
@@ -385,10 +396,12 @@ const MemberDigitalCatalog = ({
         <div className={`min-h-0 flex-1 ${gridClass}`} style={gridStyle}>
           {Array.from({ length: limit }, (_, i) => i).map((item) => (
             <div key={item} className={`${cardClass} animate-pulse`}>
-              <div className={`${coverClass} bg-slate-200 dark:bg-slate-700`} />
-              <div className="h-3 w-4/5 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className={coverShellClass}>
+                <div className={`${coverFrameClass} bg-slate-200 dark:bg-slate-700`} />
+              </div>
+              <div className="mx-auto h-3 w-4/5 rounded bg-slate-200 dark:bg-slate-700" />
               {!compactCards ? (
-                <div className="mt-1 h-2.5 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mx-auto mt-1 h-2.5 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
               ) : null}
               <div className={`mt-1 w-full rounded-lg bg-slate-200 dark:bg-slate-700 ${compactCards ? "h-6" : "h-8"}`} />
             </div>
@@ -424,50 +437,52 @@ const MemberDigitalCatalog = ({
                     }`}
                   />
                 </button>
-                <div className={coverClass}>
-                  {book.cover_image ? (
-                    <img
-                      src={buildCoverThumbnailUrl(book.cover_image, {
-                        width: compactCards ? 160 : 240,
-                        quality: 65
-                      })}
-                      alt={book.ebook_name}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                      decoding="async"
-                      referrerPolicy="no-referrer"
-                      data-retry="0"
-                      onError={(e) => {
-                        const img = e.currentTarget as HTMLImageElement;
-                        const retry = Number(img.dataset.retry || "0");
-                        const source = buildCoverThumbnailUrl(book.cover_image, {
+                <div className={coverShellClass}>
+                  <div className={coverFrameClass}>
+                    {book.cover_image ? (
+                      <img
+                        src={buildCoverThumbnailUrl(book.cover_image, {
                           width: compactCards ? 160 : 240,
                           quality: 65
-                        });
-                        if (source && retry < COVER_RETRY_MAX) {
-                          const next = retry + 1;
-                          img.dataset.retry = String(next);
-                          img.src = withRetryBuster(source, next);
-                          return;
-                        }
-                        img.src = FALLBACK_COVER;
-                      }}
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-[10px] font-semibold text-slate-500 dark:text-slate-300">
-                      No Cover
-                    </div>
-                  )}
+                        })}
+                        alt={book.ebook_name}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        data-retry="0"
+                        onError={(e) => {
+                          const img = e.currentTarget as HTMLImageElement;
+                          const retry = Number(img.dataset.retry || "0");
+                          const source = buildCoverThumbnailUrl(book.cover_image, {
+                            width: compactCards ? 160 : 240,
+                            quality: 65
+                          });
+                          if (source && retry < COVER_RETRY_MAX) {
+                            const next = retry + 1;
+                            img.dataset.retry = String(next);
+                            img.src = withRetryBuster(source, next);
+                            return;
+                          }
+                          img.src = FALLBACK_COVER;
+                        }}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-500 dark:text-slate-300">
+                        No Cover
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <p
-                  className={`line-clamp-1 shrink-0 font-semibold text-slate-800 dark:text-slate-100 ${
+                  className={`line-clamp-1 w-full shrink-0 text-center font-semibold text-slate-800 dark:text-slate-100 ${
                     compactCards ? "text-[10px] leading-tight" : "text-xs lg:text-sm"
                   }`}
                 >
                   {book.ebook_name}
                 </p>
                 {!compactCards ? (
-                  <p className="mt-0.5 line-clamp-1 shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
+                  <p className="mt-0.5 line-clamp-1 w-full shrink-0 text-center text-[11px] text-slate-500 dark:text-slate-400">
                     {book.author_name || "Unknown author"}
                   </p>
                 ) : null}

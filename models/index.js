@@ -44,6 +44,7 @@ const db = {
   AppSetting: require('./appSetting.model')(sequelize, DataTypes),
   ClosedTester: require('./closedTester.model')(sequelize, DataTypes),
   ClosedTesterActivity: require('./closedTesterActivity.model')(sequelize, DataTypes),
+  AuditLog: require('./auditLog.model')(sequelize, DataTypes),
 };
 
 Object.keys(db).forEach((key) => {

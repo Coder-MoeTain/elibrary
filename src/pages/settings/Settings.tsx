@@ -1,4 +1,4 @@
-import { Database, Globe, Palette, UserRound } from "lucide-react";
+import { Database, Globe, Palette, ScrollText, UserRound } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
@@ -8,7 +8,7 @@ import ToastBanner from "../../components/ui/ToastBanner";
 import { useAuth } from "../../context/AuthContext";
 import { useTimezone } from "../../context/TimezoneContext";
 import { useTheme } from "../../hooks/useTheme";
-import type { AdminTier, BackupFile } from "../../services/api";
+import type { AdminTier, AuditLogEntry, BackupFile } from "../../services/api";
 import {
   changeAdminPassword,
   createBackup,
@@ -17,6 +17,7 @@ import {
   getAdminProfile,
   getApiErrorMessage,
   getAppSettings,
+  listAuditLogs,
   listBackups,
   restoreBackupFile,
   restoreBackupUpload,
@@ -27,7 +28,7 @@ import {
 import { formatBytes } from "../../utils/datetime";
 
 type Toast = { kind: "success" | "error"; message: string } | null;
-type TabId = "account" | "appearance" | "timezone" | "backup";
+type TabId = "account" | "appearance" | "timezone" | "backup" | "audit";
 
 type ToggleProps = {
   checked: boolean;
@@ -108,6 +109,10 @@ const Settings = () => {
   const [loadingEbooksFlag, setLoadingEbooksFlag] = useState(true);
   const [savingEbooksFlag, setSavingEbooksFlag] = useState(false);
 
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
   useEffect(() => {
     setDraftTz(tz.timezone);
   }, [tz.timezone]);
@@ -169,8 +174,23 @@ const Settings = () => {
     }
   };
 
+  const loadAuditLogs = async () => {
+    if (!isSuperAdmin) return;
+    try {
+      setLoadingAudit(true);
+      const data = await listAuditLogs({ limit: 100, offset: 0 });
+      setAuditLogs(data.items);
+      setAuditTotal(data.total);
+    } catch (err) {
+      setToast({ kind: "error", message: getApiErrorMessage(err) });
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+
   useEffect(() => {
     if (tab === "backup" && isSuperAdmin) void loadBackups();
+    if (tab === "audit" && isSuperAdmin) void loadAuditLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, isSuperAdmin]);
 
@@ -180,7 +200,10 @@ const Settings = () => {
       { id: "appearance", label: "Appearance", icon: Palette },
       { id: "timezone", label: "Timezone", icon: Globe }
     ];
-    if (isSuperAdmin) items.push({ id: "backup", label: "Backup", icon: Database });
+    if (isSuperAdmin) {
+      items.push({ id: "backup", label: "Backup", icon: Database });
+      items.push({ id: "audit", label: "Audit logs", icon: ScrollText });
+    }
     return items;
   }, [isSuperAdmin]);
 
@@ -325,7 +348,10 @@ const Settings = () => {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <PageHeader title="Settings" description="Account, appearance, library timezone, and database backups." />
+      <PageHeader
+        title="Settings"
+        description="Account, appearance, library timezone, database backups, and audit logs."
+      />
 
       {toast && <ToastBanner kind={toast.kind} message={toast.message} />}
 
@@ -481,6 +507,83 @@ const Settings = () => {
               </Button>
             </div>
           </form>
+        </section>
+      )}
+
+      {tab === "audit" && isSuperAdmin && (
+        <section className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Security audit log</h3>
+            <Button type="button" variant="secondary" disabled={loadingAudit} onClick={() => void loadAuditLogs()}>
+              {loadingAudit ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white/80 shadow-card dark:border-slate-700 dark:bg-slate-800/80">
+            {loadingAudit ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-500">Loading audit logs…</p>
+            ) : auditLogs.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                No audit entries yet. Admin logins, logouts, and settings changes will appear here.
+              </p>
+            ) : (
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <th className="px-4 py-3">When</th>
+                    <th className="px-4 py-3">Actor</th>
+                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Target</th>
+                    <th className="px-4 py-3">Result</th>
+                    <th className="px-4 py-3">IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.map((row) => {
+                    const result = (row.result || "success").toLowerCase();
+                    const resultOk = result === "success";
+                    return (
+                      <tr
+                        key={row.id}
+                        className="border-b border-slate-100 last:border-0 dark:border-slate-700/70"
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-600 dark:text-slate-300">
+                          {row.createdAt || "—"}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                          {row.actorName || "—"}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-rose-600 dark:text-rose-400">
+                          {row.action}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                          {row.target || ""}
+                        </td>
+                        <td
+                          className={`px-4 py-3 font-medium ${
+                            resultOk
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-rose-600 dark:text-rose-400"
+                          }`}
+                        >
+                          {row.result || "success"}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-600 dark:text-slate-300">
+                          {row.ip || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {!loadingAudit && auditTotal > 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Showing {auditLogs.length} of {auditTotal} entries
+            </p>
+          ) : null}
         </section>
       )}
 

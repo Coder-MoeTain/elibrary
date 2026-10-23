@@ -188,6 +188,14 @@ export async function loginAdmin(adminName: string, password: string): Promise<A
   return data;
 }
 
+export async function logoutAdmin(): Promise<void> {
+  try {
+    await api.post("/auth/admin/logout");
+  } catch {
+    // Best-effort audit; local session still clears.
+  }
+}
+
 export async function loginUser(userName: string, password: string): Promise<ApiEnvelope<LoginTokenData>> {
   const { data } = await api.post<ApiEnvelope<LoginTokenData>>("/auth/user/login", {
     userName,
@@ -1704,6 +1712,40 @@ export async function restoreBackupUpload(file: File): Promise<void> {
 
 export async function deleteBackupFile(fileName: string): Promise<void> {
   await api.delete(`/settings/backups/${encodeURIComponent(fileName)}`);
+}
+
+export type AuditLogEntry = {
+  id: number;
+  actorId: number | null;
+  actorName: string;
+  action: string;
+  target: string | null;
+  result: string;
+  details: string | null;
+  ip: string | null;
+  createdAt: string;
+};
+
+export type AuditLogList = {
+  total: number;
+  items: AuditLogEntry[];
+};
+
+export async function listAuditLogs(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<AuditLogList> {
+  const { data } = await api.get<ApiEnvelope<AuditLogList>>("/settings/audit-logs", {
+    params: {
+      limit: params?.limit ?? 100,
+      offset: params?.offset ?? 0
+    }
+  });
+  const payload = data.data;
+  return {
+    total: Number(payload?.total) || 0,
+    items: Array.isArray(payload?.items) ? payload.items : []
+  };
 }
 
 export type ClosedTestingDailyPoint = {

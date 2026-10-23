@@ -1,6 +1,7 @@
 const validator = require('validator');
 const authService = require('../services/auth.service');
 const userService = require('../services/user.service');
+const auditLogService = require('../services/auditLog.service');
 const asyncHandler = require('../utils/asyncHandler');
 const { success, created } = require('../helpers/response.helper');
 const { MESSAGES, HTTP_STATUS } = require('../constants');
@@ -10,8 +11,35 @@ const AppError = require('../utils/AppError');
 const BLOCKED_EMAIL_DOMAINS = ['tempmail.com', 'mailinator.com'];
 
 const adminLogin = asyncHandler(async (req, res) => {
-  const result = await authService.adminLogin(req.body.adminName, req.body.password);
-  return success(res, { data: result, message: 'Admin signed in' });
+  const adminName = String(req.body.adminName || '').trim();
+  try {
+    const result = await authService.adminLogin(adminName, req.body.password);
+    await auditLogService.record({
+      actorId: result?.admin?.adminId ?? result?.admin?.admin_id ?? null,
+      actorName: result?.admin?.adminName || adminName || 'Administrator',
+      action: 'login_success',
+      result: 'success',
+      ip: auditLogService.clientIp(req),
+    });
+    return success(res, { data: result, message: 'Admin signed in' });
+  } catch (err) {
+    await auditLogService.record({
+      actorName: adminName || 'unknown',
+      action: 'login_failure',
+      result: 'failure',
+      details: err?.message || 'Invalid credentials',
+      ip: auditLogService.clientIp(req),
+    });
+    throw err;
+  }
+});
+
+const adminLogout = asyncHandler(async (req, res) => {
+  await auditLogService.recordFromRequest(req, {
+    action: 'logout',
+    result: 'success',
+  });
+  return success(res, { data: null, message: 'Admin signed out' });
 });
 
 const userLogin = asyncHandler(async (req, res) => {
@@ -81,6 +109,7 @@ const appleSignIn = asyncHandler(async (req, res) => {
 
 module.exports = {
   adminLogin,
+  adminLogout,
   userLogin,
   register,
   googleSignIn,

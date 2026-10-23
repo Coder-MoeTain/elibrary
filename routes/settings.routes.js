@@ -47,6 +47,8 @@ router.post(
   settingsController.clearUserJoinNotices
 );
 
+router.get('/audit-logs', authenticate, requireSuperAdmin, settingsController.listAuditLogs);
+
 router.get('/backups', authenticate, requireSuperAdmin, settingsController.listBackups);
 router.post('/backups', authenticate, requireSuperAdmin, settingsController.createBackup);
 router.get('/backups/:file', authenticate, requireSuperAdmin, settingsController.downloadBackup);

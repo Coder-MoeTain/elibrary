@@ -188,12 +188,22 @@ export async function loginAdmin(adminName: string, password: string): Promise<A
   return data;
 }
 
-export async function logoutAdmin(): Promise<void> {
+/** Records logout for admin or member, then caller clears local session. */
+export async function logoutSession(): Promise<void> {
   try {
-    await api.post("/auth/admin/logout");
+    await api.post("/auth/logout");
   } catch {
-    // Best-effort audit; local session still clears.
+    try {
+      await api.post("/auth/admin/logout");
+    } catch {
+      // Best-effort audit; local session still clears.
+    }
   }
+}
+
+/** @deprecated use logoutSession */
+export async function logoutAdmin(): Promise<void> {
+  await logoutSession();
 }
 
 export async function loginUser(userName: string, password: string): Promise<ApiEnvelope<LoginTokenData>> {
@@ -1718,6 +1728,7 @@ export type AuditLogEntry = {
   id: number;
   actorId: number | null;
   actorName: string;
+  actorKind: "admin" | "user" | "system" | string;
   action: string;
   target: string | null;
   result: string;

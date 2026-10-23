@@ -524,7 +524,7 @@ const Settings = () => {
               <p className="px-4 py-10 text-center text-sm text-slate-500">Loading audit logs…</p>
             ) : auditLogs.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-                No audit entries yet. Admin logins, logouts, and settings changes will appear here.
+                No audit entries yet. Admin and member logins, logouts, and settings changes will appear here.
               </p>
             ) : (
               <table className="min-w-full text-left text-sm">
@@ -551,7 +551,20 @@ const Settings = () => {
                           {row.createdAt || "—"}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
-                          {row.actorName || "—"}
+                          <span className="inline-flex flex-wrap items-center gap-2">
+                            {row.actorName || "—"}
+                            {row.actorKind === "user" || row.actorKind === "admin" ? (
+                              <span
+                                className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                  row.actorKind === "admin"
+                                    ? "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                                    : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                                }`}
+                              >
+                                {row.actorKind === "admin" ? "Admin" : "User"}
+                              </span>
+                            ) : null}
+                          </span>
                         </td>
                         <td className="px-4 py-3 font-medium text-rose-600 dark:text-rose-400">
                           {row.action}

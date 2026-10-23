@@ -23,6 +23,11 @@ module.exports = {
         allowNull: false,
         defaultValue: 'system',
       },
+      actor_kind: {
+        type: Sequelize.STRING(16),
+        allowNull: false,
+        defaultValue: 'system',
+      },
       action: {
         type: Sequelize.STRING(64),
         allowNull: false,

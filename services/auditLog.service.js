@@ -1,14 +1,27 @@
-const { AuditLog, Admin } = require('../models');
+const { AuditLog, Admin, User } = require('../models');
+const { ROLES } = require('../constants');
 const { getTimezone } = require('./settings.service');
 const { normalizeTimezone, zonedParts } = require('../utils/timezone');
 
-async function resolveActorName(actorId, fallback) {
+async function resolveAdminName(actorId, fallback) {
   if (fallback) return String(fallback).slice(0, 255);
-  if (!actorId) return 'system';
+  if (!actorId) return 'Administrator';
   const admin = await Admin.unscoped().findByPk(actorId, {
     attributes: ['adminName'],
   });
   return admin?.adminName ? String(admin.adminName).slice(0, 255) : `admin#${actorId}`;
+}
+
+async function resolveUserName(actorId, fallback) {
+  if (fallback) return String(fallback).slice(0, 255);
+  if (!actorId) return 'Member';
+  const user = await User.unscoped().findByPk(actorId, {
+    attributes: ['userName', 'email'],
+  });
+  if (!user) return `user#${actorId}`;
+  const name = String(user.userName || '').trim();
+  const email = String(user.email || '').trim();
+  return (name || email || `user#${actorId}`).slice(0, 255);
 }
 
 /** Format like `2026-10-20 14:23` in the library timezone. */
@@ -21,12 +34,19 @@ function formatAuditWhen(value, timeZone) {
   return `${p.year}-${pad(p.month)}-${pad(p.day)} ${pad(p.hour)}:${pad(p.minute)}`;
 }
 
+function normalizeKind(kind) {
+  const k = String(kind || 'system').toLowerCase();
+  if (k === 'admin' || k === 'user' || k === 'member') return k === 'member' ? 'user' : k;
+  return 'system';
+}
+
 /**
  * Append-only audit entry. Never throws to callers — logging must not break the main action.
  */
 async function record({
   actorId = null,
   actorName = null,
+  actorKind = 'system',
   action,
   target = null,
   result = 'success',
@@ -35,10 +55,17 @@ async function record({
 } = {}) {
   if (!action) return null;
   try {
-    const name = await resolveActorName(actorId, actorName);
+    const kind = normalizeKind(actorKind);
+    let name = actorName;
+    if (!name) {
+      if (kind === 'admin') name = await resolveAdminName(actorId, null);
+      else if (kind === 'user') name = await resolveUserName(actorId, null);
+      else name = 'system';
+    }
     const row = await AuditLog.create({
       actorId: actorId != null ? Number(actorId) : null,
-      actorName: name,
+      actorName: String(name).slice(0, 255),
+      actorKind: kind,
       action: String(action).slice(0, 64),
       target: target != null && String(target).trim() ? String(target).slice(0, 255) : null,
       result: String(result || 'success').slice(0, 32),
@@ -60,10 +87,19 @@ function clientIp(req) {
   return req?.ip || req?.socket?.remoteAddress || null;
 }
 
+function actorKindFromRequest(req) {
+  const role = req?.user?.role;
+  if (role === ROLES.ADMIN) return 'admin';
+  if (role === ROLES.MEMBER || role === ROLES.USER) return 'user';
+  return 'system';
+}
+
 async function recordFromRequest(req, { action, target, result = 'success', details, actorName } = {}) {
+  const kind = actorKindFromRequest(req);
   return record({
     actorId: req?.user?.id ?? null,
     actorName: actorName ?? null,
+    actorKind: kind,
     action,
     target,
     result,
@@ -89,6 +125,7 @@ async function list({ limit = 100, offset = 0 } = {}) {
       id: row.id,
       actorId: row.actorId,
       actorName: row.actorName,
+      actorKind: row.actorKind || 'system',
       action: row.action,
       target: row.target,
       result: row.result || 'success',

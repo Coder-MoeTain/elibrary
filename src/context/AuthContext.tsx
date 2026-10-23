@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
-import { logoutAdmin } from "../services/api";
+import { logoutSession } from "../services/api";
 import { readTheme, writeTheme } from "../hooks/useTheme";
 import { getRole, isSuperAdmin as checkSuperAdmin } from "../utils/auth";
 
@@ -49,17 +49,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(true);
       },
       logout: () => {
-        const wasAdmin = getRole() === "admin";
         const clear = () => {
           localStorage.removeItem("token");
           setIsAuthenticated(false);
           setRole("admin");
         };
-        if (wasAdmin) {
-          void logoutAdmin().finally(clear);
-        } else {
-          clear();
-        }
+        void logoutSession().finally(clear);
       },
       toggleTheme: () => {
         const next = readTheme() === "light" ? "dark" : "light";

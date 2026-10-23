@@ -18,6 +18,12 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 'system',
         field: 'actor_name',
       },
+      actorKind: {
+        type: DataTypes.STRING(16),
+        allowNull: false,
+        defaultValue: 'system',
+        field: 'actor_kind',
+      },
       action: {
         type: DataTypes.STRING(64),
         allowNull: false,

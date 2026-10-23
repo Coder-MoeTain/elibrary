@@ -893,12 +893,25 @@ export async function getRecommendedEbooks(limit = 30): Promise<EbookItem[]> {
   return rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
 }
 
-export async function getMostPopularEbooks(limit = 30): Promise<EbookItem[]> {
+export async function getMostPopularEbooks(
+  limit = 30,
+  options?: { contentType?: EbookContentType }
+): Promise<EbookItem[]> {
+  const params: Record<string, string | number> = { limit };
+  if (options?.contentType) params.contentType = options.contentType;
   const { data } = await api.get<ApiEnvelope<unknown[]>>("/ebooks/most-popular", {
-    params: { limit }
+    params
   });
   const rows = Array.isArray(data.data) ? data.data : [];
   return rows.map(normalizeEbook).filter((x): x is EbookItem => x !== null);
+}
+
+export async function getMostPopularBooks(limit = 30): Promise<BookItem[]> {
+  const { data } = await api.get<ApiEnvelope<unknown[]>>("/books/most-popular", {
+    params: { limit }
+  });
+  const rows = Array.isArray(data.data) ? data.data : [];
+  return rows.map(normalizeBook).filter((x): x is BookItem => x !== null);
 }
 
 export async function getNewUploads(limit = 30): Promise<EbookItem[]> {

@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const { Book, RentList, Author, Category, sequelize } = require('../models');
 const fs = require('fs');
 const AppError = require('../utils/AppError');
@@ -334,6 +334,30 @@ async function getAvailability(bookId) {
   };
 }
 
+/** Order by rental count; books with no rentals still appear after popular ones. */
+async function getMostPopularBooks(limit = 30) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 60);
+  const ranked = await sequelize.query(
+    `
+    SELECT b.book_id AS bookId
+    FROM books b
+    LEFT JOIN rent_list r ON r.Books_book_id = b.book_id
+    GROUP BY b.book_id
+    ORDER BY COUNT(r.rent_list_id) DESC, b.book_id ASC
+    LIMIT :limit
+    `,
+    { replacements: { limit: safeLimit }, type: QueryTypes.SELECT }
+  );
+  const ids = ranked.map((r) => Number(r.bookId)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!ids.length) return [];
+  const rows = await Book.findAll({
+    where: { bookId: { [Op.in]: ids } },
+    include: ['category', 'author'],
+  });
+  const byId = new Map(rows.map((row) => [row.bookId, row]));
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}
+
 module.exports = {
   create,
   findAll,
@@ -342,4 +366,5 @@ module.exports = {
   update,
   remove,
   getAvailability,
+  getMostPopularBooks,
 };

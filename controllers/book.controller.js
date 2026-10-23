@@ -52,6 +52,12 @@ const list = asyncHandler(async (req, res) => {
   return success(res, { data: rows });
 });
 
+const mostPopular = asyncHandler(async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
+  const rows = await bookService.getMostPopularBooks(limit);
+  return success(res, { data: rows });
+});
+
 const getById = asyncHandler(async (req, res) => {
   const row = await bookService.findById(req.params.id);
   return success(res, { data: row });
@@ -76,4 +82,4 @@ const remove = asyncHandler(async (req, res) => {
   return noContent(res);
 });
 
-module.exports = { create, list, getById, availability, update, remove };
+module.exports = { create, list, mostPopular, getById, availability, update, remove };

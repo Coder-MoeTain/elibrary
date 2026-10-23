@@ -80,7 +80,10 @@ const recommended = asyncHandler(async (req, res) => {
 
 const mostPopular = asyncHandler(async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
-  const rows = await ebookService.getMostPopularEbooks(limit);
+  const rows = await ebookService.getMostPopularEbooks(limit, {
+    contentType: req.query.contentType ?? req.query.content_type,
+    imported: req.query.imported,
+  });
   return success(res, { data: rows });
 });
 

@@ -11,6 +11,7 @@ const router = Router();
 const idAvailability = [param('id').isInt({ min: 1 }).withMessage('id must be a positive integer')];
 
 router.get('/', authenticate, bookController.list);
+router.get('/most-popular', authenticate, bookController.mostPopular);
 router.get(
   '/:id/availability',
   authenticate,

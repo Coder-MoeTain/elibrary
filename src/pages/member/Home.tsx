@@ -10,6 +10,7 @@ import {
   getApiErrorMessage,
   getBooksPage,
   getEbooksPage,
+  getMostPopularBooks,
   getMostPopularEbooks,
   getNewUploads,
   getRecommendedEbooks,
@@ -17,10 +18,46 @@ import {
 
 type Toast = { kind: "success" | "error"; message: string } | null;
 
+type PopularEntry =
+  | { kind: "ebook"; item: EbookItem }
+  | { kind: "paper"; item: EbookItem }
+  | { kind: "book"; item: BookItem };
+
 /** Visible cards per slide (6-column row). */
 const SLIDE_SIZE = 6;
 /** Fetch enough items so users can slide through several pages. */
 const POOL_SIZE = 30;
+/** Per-type fetch size before interleaving into Most Popular. */
+const POPULAR_PER_TYPE = 15;
+
+/** Round-robin mix of e-books, physical books, and research papers. */
+function interleavePopular(
+  ebooks: EbookItem[],
+  books: BookItem[],
+  papers: EbookItem[],
+  limit: number
+): PopularEntry[] {
+  const queues: PopularEntry[][] = [
+    ebooks.map((item) => ({ kind: "ebook", item })),
+    books.map((item) => ({ kind: "book", item })),
+    papers.map((item) => ({ kind: "paper", item })),
+  ];
+  const out: PopularEntry[] = [];
+  let cursor = 0;
+  while (out.length < limit) {
+    let progressed = false;
+    for (let n = 0; n < queues.length && out.length < limit; n += 1) {
+      const q = queues[(cursor + n) % queues.length];
+      const next = q.shift();
+      if (!next) continue;
+      out.push(next);
+      progressed = true;
+    }
+    cursor = (cursor + 1) % queues.length;
+    if (!progressed) break;
+  }
+  return out;
+}
 
 const sectionClass =
   "flex min-h-0 flex-col rounded-2xl border border-slate-200/60 bg-white/70 p-3 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/70 sm:p-4";
@@ -299,7 +336,7 @@ const Home = () => {
   const navigate = useNavigate();
   const [books, setBooks] = useState<BookItem[]>([]);
   const [recommended, setRecommended] = useState<EbookItem[]>([]);
-  const [popular, setPopular] = useState<EbookItem[]>([]);
+  const [popular, setPopular] = useState<PopularEntry[]>([]);
   const [newUploads, setNewUploads] = useState<EbookItem[]>([]);
   const [papers, setPapers] = useState<EbookItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -316,17 +353,29 @@ const Home = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [physical, rec, pop, neu, paperPage] = await Promise.all([
+        const [
+          physical,
+          rec,
+          popEbooks,
+          popBooks,
+          popPapers,
+          neu,
+          paperPage,
+        ] = await Promise.all([
           getBooksPage({ page: 1, limit: POOL_SIZE }),
           getRecommendedEbooks(POOL_SIZE),
-          getMostPopularEbooks(POOL_SIZE),
+          getMostPopularEbooks(POPULAR_PER_TYPE, { contentType: "ebook" }),
+          getMostPopularBooks(POPULAR_PER_TYPE),
+          getMostPopularEbooks(POPULAR_PER_TYPE, { contentType: "paper" }),
           getNewUploads(POOL_SIZE),
           getEbooksPage({ page: 1, limit: POOL_SIZE, contentType: "paper" }),
         ]);
         if (!cancelled) {
           setBooks(physical.items.slice(0, POOL_SIZE));
           setRecommended(rec.slice(0, POOL_SIZE));
-          setPopular(pop.slice(0, POOL_SIZE));
+          setPopular(
+            interleavePopular(popEbooks, popBooks, popPapers, POOL_SIZE)
+          );
           setNewUploads(neu.slice(0, POOL_SIZE));
           setPapers(paperPage.items.slice(0, POOL_SIZE));
         }
@@ -432,7 +481,7 @@ const Home = () => {
         <SlideRow
           title="Most Popular"
           loading={loading}
-          emptyText="No popular e-books yet."
+          emptyText="No popular titles yet."
           totalCount={popular.length}
           slideIndex={popularPager.slideIndex}
           direction={popularPager.direction}
@@ -442,14 +491,35 @@ const Home = () => {
           motionDelay={0.08}
         >
           <div className={gridClass}>
-            {visiblePopular.map((item) => (
-              <EbookMiniCard
-                key={item.ebook_id}
-                item={item}
-                showReads
-                onDetail={() => goDetail(item.ebook_id)}
-              />
-            ))}
+            {visiblePopular.map((entry) => {
+              if (entry.kind === "book") {
+                return (
+                  <BookMiniCard
+                    key={`book-${entry.item.book_id}`}
+                    book={entry.item}
+                    onDetail={() => goBookDetail(entry.item.book_id)}
+                  />
+                );
+              }
+              if (entry.kind === "paper") {
+                return (
+                  <EbookMiniCard
+                    key={`paper-${entry.item.ebook_id}`}
+                    item={entry.item}
+                    showReads
+                    onDetail={() => goPaperDetail(entry.item.ebook_id)}
+                  />
+                );
+              }
+              return (
+                <EbookMiniCard
+                  key={`ebook-${entry.item.ebook_id}`}
+                  item={entry.item}
+                  showReads
+                  onDetail={() => goDetail(entry.item.ebook_id)}
+                />
+              );
+            })}
           </div>
         </SlideRow>
 

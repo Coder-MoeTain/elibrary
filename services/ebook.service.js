@@ -535,12 +535,13 @@ async function toRowsWithReadCount(rows) {
 }
 
 /** Order by aggregate read count (ebook_reads); read_count is not a column on eBooks. */
-async function getMostPopularEbooks(limit = 30) {
+async function getMostPopularEbooks(limit = 30, options = {}) {
+  const where = contentTypeListClause(options);
   const popularityExpr = literal(
     '(SELECT COUNT(*) FROM `ebook_reads` AS `er` WHERE `er`.`ebook_id` = `EBook`.`eBooks_id`)'
   );
   const rows = await EBook.findAll({
-    where: ebookClause(),
+    where,
     limit,
     order: [
       [popularityExpr, 'DESC'],

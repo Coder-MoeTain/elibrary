@@ -1,6 +1,6 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
@@ -9,6 +9,7 @@ import {
   EbookItem,
   getApiErrorMessage,
   getBooksPage,
+  getEbooksPage,
   getMostPopularEbooks,
   getNewUploads,
   getRecommendedEbooks,
@@ -146,12 +147,28 @@ function SectionSkeleton() {
   );
 }
 
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction >= 0 ? 56 : -56,
+    opacity: 0
+  }),
+  center: {
+    x: 0,
+    opacity: 1
+  },
+  exit: (direction: number) => ({
+    x: direction >= 0 ? -56 : 56,
+    opacity: 0
+  })
+};
+
 function SlideRow({
   title,
   loading,
   emptyText,
   totalCount,
   slideIndex,
+  direction,
   onPrev,
   onNext,
   children,
@@ -163,6 +180,7 @@ function SlideRow({
   emptyText: string;
   totalCount: number;
   slideIndex: number;
+  direction: number;
   onPrev: () => void;
   onNext: () => void;
   children: ReactNode;
@@ -219,7 +237,22 @@ function SlideRow({
           >
             <ChevronRight className="h-5 w-5" />
           </button>
-          <div className="h-full min-h-0 px-5 sm:px-6">{children}</div>
+          <div className="relative h-full min-h-0 overflow-hidden px-5 sm:px-6">
+            <AnimatePresence initial={false} custom={direction} mode="wait">
+              <motion.div
+                key={slideIndex}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+                className="h-full min-h-0 w-full"
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       )}
     </motion.section>
@@ -228,7 +261,10 @@ function SlideRow({
 
 function useSlidePager(itemCount: number) {
   const [slideIndex, setSlideIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
   const totalSlides = Math.max(1, Math.ceil(itemCount / SLIDE_SIZE));
+  const slideIndexRef = useRef(slideIndex);
+  slideIndexRef.current = slideIndex;
 
   useEffect(() => {
     setSlideIndex((i) => Math.min(i, Math.max(0, totalSlides - 1)));
@@ -241,10 +277,21 @@ function useSlidePager(itemCount: number) {
 
   return {
     slideIndex,
+    direction,
     totalSlides,
     pageSlice,
-    goPrev: () => setSlideIndex((i) => Math.max(0, i - 1)),
-    goNext: () => setSlideIndex((i) => Math.min(totalSlides - 1, i + 1)),
+    goPrev: () => {
+      const cur = slideIndexRef.current;
+      if (cur <= 0) return;
+      setDirection(-1);
+      setSlideIndex(cur - 1);
+    },
+    goNext: () => {
+      const cur = slideIndexRef.current;
+      if (cur >= totalSlides - 1) return;
+      setDirection(1);
+      setSlideIndex(cur + 1);
+    },
   };
 }
 
@@ -254,6 +301,7 @@ const Home = () => {
   const [recommended, setRecommended] = useState<EbookItem[]>([]);
   const [popular, setPopular] = useState<EbookItem[]>([]);
   const [newUploads, setNewUploads] = useState<EbookItem[]>([]);
+  const [papers, setPapers] = useState<EbookItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast>(null);
 
@@ -261,23 +309,26 @@ const Home = () => {
   const recommendedPager = useSlidePager(recommended.length);
   const popularPager = useSlidePager(popular.length);
   const newUploadsPager = useSlidePager(newUploads.length);
+  const papersPager = useSlidePager(papers.length);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
         setLoading(true);
-        const [physical, rec, pop, neu] = await Promise.all([
+        const [physical, rec, pop, neu, paperPage] = await Promise.all([
           getBooksPage({ page: 1, limit: POOL_SIZE }),
           getRecommendedEbooks(POOL_SIZE),
           getMostPopularEbooks(POOL_SIZE),
           getNewUploads(POOL_SIZE),
+          getEbooksPage({ page: 1, limit: POOL_SIZE, contentType: "paper" }),
         ]);
         if (!cancelled) {
           setBooks(physical.items.slice(0, POOL_SIZE));
           setRecommended(rec.slice(0, POOL_SIZE));
           setPopular(pop.slice(0, POOL_SIZE));
           setNewUploads(neu.slice(0, POOL_SIZE));
+          setPapers(paperPage.items.slice(0, POOL_SIZE));
         }
       } catch (err) {
         if (!cancelled)
@@ -293,6 +344,7 @@ const Home = () => {
   }, []);
 
   const goDetail = (id: number) => navigate(`/member/ebooks/${id}`);
+  const goPaperDetail = (id: number) => navigate(`/member/papers/${id}`);
   const goBookDetail = (id: number) => navigate(`/member/books/${id}`);
 
   const visibleBooks = books.slice(booksPager.pageSlice.start, booksPager.pageSlice.end);
@@ -305,6 +357,7 @@ const Home = () => {
     newUploadsPager.pageSlice.start,
     newUploadsPager.pageSlice.end
   );
+  const visiblePapers = papers.slice(papersPager.pageSlice.start, papersPager.pageSlice.end);
 
   return (
     <div className="space-y-4 lg:space-y-6">
@@ -333,6 +386,7 @@ const Home = () => {
           emptyText="No books found."
           totalCount={books.length}
           slideIndex={booksPager.slideIndex}
+          direction={booksPager.direction}
           onPrev={booksPager.goPrev}
           onNext={booksPager.goNext}
           fitViewport
@@ -355,6 +409,7 @@ const Home = () => {
           emptyText="No books found."
           totalCount={recommended.length}
           slideIndex={recommendedPager.slideIndex}
+          direction={recommendedPager.direction}
           onPrev={recommendedPager.goPrev}
           onNext={recommendedPager.goNext}
           fitViewport
@@ -380,6 +435,7 @@ const Home = () => {
           emptyText="No popular e-books yet."
           totalCount={popular.length}
           slideIndex={popularPager.slideIndex}
+          direction={popularPager.direction}
           onPrev={popularPager.goPrev}
           onNext={popularPager.goNext}
           fitViewport
@@ -403,6 +459,7 @@ const Home = () => {
           emptyText="No new uploads yet."
           totalCount={newUploads.length}
           slideIndex={newUploadsPager.slideIndex}
+          direction={newUploadsPager.direction}
           onPrev={newUploadsPager.goPrev}
           onNext={newUploadsPager.goNext}
           fitViewport
@@ -415,6 +472,33 @@ const Home = () => {
                 item={item}
                 showReads
                 onDetail={() => goDetail(item.ebook_id)}
+              />
+            ))}
+          </div>
+        </SlideRow>
+      </div>
+
+      {/* Third screen: Recommended Research Papers (6 visible, slide through ~30) */}
+      <div className="flex flex-col gap-2 lg:h-[calc((100dvh-9rem)/2)] lg:min-h-0 lg:overflow-hidden">
+        <SlideRow
+          title="Recommended Research Papers"
+          loading={loading}
+          emptyText="No research papers found."
+          totalCount={papers.length}
+          slideIndex={papersPager.slideIndex}
+          direction={papersPager.direction}
+          onPrev={papersPager.goPrev}
+          onNext={papersPager.goNext}
+          fitViewport
+          motionDelay={0.16}
+        >
+          <div className={gridClass}>
+            {visiblePapers.map((item) => (
+              <EbookMiniCard
+                key={item.ebook_id}
+                item={item}
+                showReads={false}
+                onDetail={() => goPaperDetail(item.ebook_id)}
               />
             ))}
           </div>

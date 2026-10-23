@@ -9,6 +9,7 @@ import Authors from "../pages/authors/Authors";
 import BookDetail from "../pages/books/BookDetail";
 import Books from "../pages/books/Books";
 import Categories from "../pages/categories/Categories";
+import { SHOW_CLOSED_TESTING } from "../config/featureFlags";
 import ClosedTesting from "../pages/closedTesting/ClosedTesting";
 import Dashboard from "../pages/dashboard/Dashboard";
 import Departments from "../pages/departments/Departments";
@@ -62,7 +63,9 @@ const AppRoutes = () => {
       <Route element={<AdminLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="closed-testing" element={<ClosedTesting />} />
+        {SHOW_CLOSED_TESTING ? (
+          <Route path="closed-testing" element={<ClosedTesting />} />
+        ) : null}
         <Route path="books" element={<Books />} />
         <Route path="books/:id" element={<BookDetail />} />
         <Route path="ebooks" element={<Ebooks />} />

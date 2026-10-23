@@ -7,6 +7,7 @@ export type TablePaginationProps = {
   total: number;
   onPageChange: (page: number) => void;
   onLimitChange: (limit: number) => void;
+  className?: string;
 };
 
 function buildPageNumbers(
@@ -55,6 +56,7 @@ const TablePagination = ({
   total,
   onPageChange,
   onLimitChange,
+  className = "",
 }: TablePaginationProps) => {
   const totalPages = useMemo(() => {
     if (total <= 0) return 1;
@@ -77,7 +79,7 @@ const TablePagination = ({
       initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className={glassShell}
+      className={`${glassShell} ${className}`.trim()}
       role="navigation"
       aria-label="Table pagination"
     >
@@ -91,6 +93,9 @@ const TablePagination = ({
           className={selectClass}
           aria-label="Rows per page"
         >
+          <option value={12}>12</option>
+          <option value={24}>24</option>
+          <option value={36}>36</option>
           <option value={10}>10</option>
           <option value={25}>25</option>
           <option value={50}>50</option>

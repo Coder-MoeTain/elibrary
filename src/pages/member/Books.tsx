@@ -32,44 +32,20 @@ type BookRow = Record<string, unknown> & {
 type ViewMode = "grid" | "list";
 
 const FALLBACK_COVER = "/sidebar-admin-icon.png";
-/** Desktop: 6 columns; 12 → 2 rows, 24 → 4 rows. Portrait covers fit viewport. */
+/**
+ * Desktop: 6 columns. Card size always matches the default 12 view (2 rows on screen).
+ * 12 = one screen; 24 / 36 = same card size, extra rows via scroll.
+ */
 const DEFAULT_LIMIT = 12;
-const PAGE_SIZE_OPTIONS = [12, 24];
-const DESKTOP_COLS = 6;
-
-function desktopRowsForLimit(pageLimit: number): number {
-  return Math.max(1, Math.ceil(pageLimit / DESKTOP_COLS));
-}
-
-function catalogGridClass(compact: boolean): string {
-  return [
-    "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6",
-    "lg:h-full lg:min-h-0 lg:[grid-template-rows:repeat(var(--catalog-rows),minmax(0,1fr))]",
-    compact ? "gap-1.5 lg:gap-1.5" : "gap-3 lg:gap-2.5"
-  ].join(" ");
-}
-
-function catalogCardClass(compact: boolean): string {
-  return [
-    "relative flex h-full min-h-0 flex-col items-stretch border border-slate-200/60 bg-white/70 shadow-md backdrop-blur-md transition hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/70",
-    compact ? "rounded-lg p-1" : "rounded-xl p-2"
-  ].join(" ");
-}
-
-function catalogCoverShellClass(compact: boolean): string {
-  return [
-    "flex min-h-0 flex-1 items-center justify-center overflow-hidden",
-    compact ? "mb-1" : "mb-1.5"
-  ].join(" ");
-}
-
-function catalogCoverFrameClass(compact: boolean): string {
-  return [
-    "aspect-[3/4] w-full max-h-full overflow-hidden bg-slate-100 dark:bg-slate-700/70",
-    "lg:h-full lg:w-auto lg:max-w-full",
-    compact ? "rounded-md" : "rounded-lg"
-  ].join(" ");
-}
+const PAGE_SIZE_OPTIONS = [12, 24, 36];
+const GRID_CLASS =
+  "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-2.5 lg:auto-rows-[calc((100cqh-0.625rem)/2)]";
+const CARD_CLASS =
+  "relative flex h-full min-h-0 flex-col items-stretch rounded-xl border border-slate-200/60 bg-white/70 p-2 shadow-md backdrop-blur-md transition hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/70";
+const COVER_SHELL_CLASS =
+  "mb-1.5 flex min-h-0 flex-1 items-center justify-center overflow-hidden";
+const COVER_FRAME_CLASS =
+  "aspect-[3/4] w-full max-h-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700/70 lg:h-full lg:w-auto lg:max-w-full";
 
 function mapBook(b: BookItem): BookRow {
   return {
@@ -98,14 +74,6 @@ const Books = () => {
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [total, setTotal] = useState(0);
   const [toast, setToast] = useState<Toast>(null);
-
-  const desktopRows = desktopRowsForLimit(limit);
-  const compactCards = limit >= 24;
-  const gridClass = catalogGridClass(compactCards);
-  const cardClass = catalogCardClass(compactCards);
-  const coverShellClass = catalogCoverShellClass(compactCards);
-  const coverFrameClass = catalogCoverFrameClass(compactCards);
-  const gridStyle = { ["--catalog-rows" as string]: String(desktopRows) };
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(q.trim()), 350);
@@ -241,13 +209,9 @@ const Books = () => {
   ];
 
   const BookCard = ({ row }: { row: BookRow }) => (
-    <motion.div
-      initial={false}
-      animate={{ opacity: 1, y: 0 }}
-      className={cardClass}
-    >
-      <div className={coverShellClass}>
-        <div className={coverFrameClass}>
+    <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className={CARD_CLASS}>
+      <div className={COVER_SHELL_CLASS}>
+        <div className={COVER_FRAME_CLASS}>
           <img
             src={row.cover_image || FALLBACK_COVER}
             alt={row.book_name}
@@ -259,44 +223,32 @@ const Books = () => {
           />
         </div>
       </div>
-      <h3
-        className={`line-clamp-1 w-full shrink-0 text-center font-semibold text-slate-800 dark:text-white ${
-          compactCards ? "text-[10px] leading-tight" : "text-xs lg:text-sm"
-        }`}
-      >
+      <h3 className="line-clamp-1 w-full shrink-0 text-center text-xs font-semibold text-slate-800 dark:text-white lg:text-sm">
         {row.book_name}
       </h3>
-      {!compactCards ? (
-        <>
-          <p className="mt-0.5 line-clamp-1 w-full shrink-0 text-center text-[11px] text-slate-500 dark:text-slate-400">
-            {row.author_name || "Unknown author"}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
-            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
-              {row.category_name || "Uncategorized"}
-            </span>
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                row.status === "available"
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                  : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-              }`}
-            >
-              {row.status === "available" ? "Available" : "Unavailable"}
-            </span>
-          </div>
-          <p className="mt-1 line-clamp-1 w-full shrink-0 text-center text-[10px] text-slate-500 dark:text-slate-400">
-            {row.place || "Place not set"}
-          </p>
-        </>
-      ) : null}
+      <p className="mt-0.5 line-clamp-1 w-full shrink-0 text-center text-[11px] text-slate-500 dark:text-slate-400">
+        {row.author_name || "Unknown author"}
+      </p>
+      <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
+        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+          {row.category_name || "Uncategorized"}
+        </span>
+        <span
+          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+            row.status === "available"
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+          }`}
+        >
+          {row.status === "available" ? "Available" : "Unavailable"}
+        </span>
+      </div>
+      <p className="mt-1 line-clamp-1 w-full shrink-0 text-center text-[10px] text-slate-500 dark:text-slate-400">
+        {row.place || "Place not set"}
+      </p>
       <Button
         type="button"
-        className={`w-full shrink-0 justify-center rounded-md ${
-          compactCards
-            ? "mt-1 px-1 py-1 text-[10px] leading-none"
-            : "mt-1.5 rounded-lg px-2 py-1.5 text-xs"
-        }`}
+        className="mt-1.5 w-full shrink-0 justify-center rounded-lg px-2 py-1.5 text-xs"
         onClick={() => navigate(`/member/books/${row.id}`)}
       >
         View Details
@@ -376,16 +328,18 @@ const Books = () => {
       </div>
 
       {loading ? (
-        <div className={`min-h-0 flex-1 ${gridClass}`} style={gridStyle}>
-          {Array.from({ length: limit }, (_, i) => i).map((n) => (
-            <div key={n} className={`${cardClass} animate-pulse`}>
-              <div className={coverShellClass}>
-                <div className={`${coverFrameClass} bg-slate-200 dark:bg-slate-700`} />
+        <div className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
+          <div className={GRID_CLASS}>
+            {Array.from({ length: Math.min(limit, DEFAULT_LIMIT) }, (_, i) => i).map((n) => (
+              <div key={n} className={`${CARD_CLASS} animate-pulse`}>
+                <div className={COVER_SHELL_CLASS}>
+                  <div className={`${COVER_FRAME_CLASS} bg-slate-200 dark:bg-slate-700`} />
+                </div>
+                <div className="mx-auto h-3 w-4/5 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mt-1.5 h-8 w-full rounded-lg bg-slate-200 dark:bg-slate-700" />
               </div>
-              <div className="mx-auto h-3 w-4/5 rounded bg-slate-200 dark:bg-slate-700" />
-              <div className={`mt-1 w-full rounded-lg bg-slate-200 dark:bg-slate-700 ${compactCards ? "h-6" : "h-8"}`} />
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-8 text-center text-sm text-slate-500 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
@@ -393,10 +347,12 @@ const Books = () => {
         </div>
       ) : viewMode === "grid" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <div className={`min-h-0 flex-1 ${gridClass}`} style={gridStyle}>
-            {rows.map((row) => (
-              <BookCard key={row.id} row={row} />
-            ))}
+          <div className="min-h-0 flex-1 overflow-y-auto [container-type:size]">
+            <div className={GRID_CLASS}>
+              {rows.map((row) => (
+                <BookCard key={row.id} row={row} />
+              ))}
+            </div>
           </div>
           <TablePagination
             className="mt-0 shrink-0 !py-2"

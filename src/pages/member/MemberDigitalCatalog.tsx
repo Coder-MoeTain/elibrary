@@ -23,14 +23,36 @@ type ViewMode = "grid" | "list";
 
 const FALLBACK_COVER = "/sidebar-admin-icon.png";
 const COVER_RETRY_MAX = 2;
-/** Desktop grid is 6 columns × 2 rows = 12 cards per page. */
+/** Desktop: 6 columns; 12 → 2 rows, 24 → 4 rows. Cards shrink to fit viewport. */
 const DEFAULT_LIMIT = 12;
-const GRID_CLASS =
-  "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:grid-rows-2 lg:h-full lg:min-h-0 lg:gap-3";
-const CARD_CLASS =
-  "relative flex h-full min-h-0 flex-col rounded-xl border border-slate-200/60 bg-white/70 p-2 shadow-md backdrop-blur-md transition hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/70";
-const COVER_CLASS =
-  "mb-1.5 min-h-0 flex-1 overflow-hidden rounded-lg bg-slate-100 aspect-[3/4] lg:aspect-auto dark:bg-slate-700/70";
+const PAGE_SIZE_OPTIONS = [12, 24];
+const DESKTOP_COLS = 6;
+
+function desktopRowsForLimit(pageLimit: number): number {
+  return Math.max(1, Math.ceil(pageLimit / DESKTOP_COLS));
+}
+
+function catalogGridClass(compact: boolean): string {
+  return [
+    "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6",
+    "lg:h-full lg:min-h-0 lg:[grid-template-rows:repeat(var(--catalog-rows),minmax(0,1fr))]",
+    compact ? "gap-1.5 lg:gap-1.5" : "gap-3 lg:gap-2.5"
+  ].join(" ");
+}
+
+function catalogCardClass(compact: boolean): string {
+  return [
+    "relative flex h-full min-h-0 flex-col border border-slate-200/60 bg-white/70 shadow-md backdrop-blur-md transition hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/70",
+    compact ? "rounded-lg p-1" : "rounded-xl p-2"
+  ].join(" ");
+}
+
+function catalogCoverClass(compact: boolean): string {
+  return [
+    "min-h-0 flex-1 overflow-hidden bg-slate-100 aspect-[3/4] lg:aspect-auto dark:bg-slate-700/70",
+    compact ? "mb-1 rounded-md" : "mb-1.5 rounded-lg"
+  ].join(" ");
+}
 
 type EbookRow = Record<string, unknown> & {
   id: number;
@@ -99,10 +121,17 @@ const MemberDigitalCatalog = ({
   const [totalFiltered, setTotalFiltered] = useState(0);
 
   const page = parsePositiveInt(searchParams.get("page"), 1);
-  const limit = parsePositiveInt(searchParams.get("limit"), DEFAULT_LIMIT);
+  const rawLimit = parsePositiveInt(searchParams.get("limit"), DEFAULT_LIMIT);
+  const limit = PAGE_SIZE_OPTIONS.includes(rawLimit) ? rawLimit : DEFAULT_LIMIT;
   const q = searchParams.get("q") ?? "";
   const selectedCategory = searchParams.get("category") ?? "All Categories";
   const viewMode: ViewMode = searchParams.get("view") === "list" ? "list" : "grid";
+  const desktopRows = desktopRowsForLimit(limit);
+  const compactCards = limit >= 24;
+  const gridClass = catalogGridClass(compactCards);
+  const cardClass = catalogCardClass(compactCards);
+  const coverClass = catalogCoverClass(compactCards);
+  const gridStyle = { ["--catalog-rows" as string]: String(desktopRows) };
 
   const listSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
 
@@ -353,13 +382,15 @@ const MemberDigitalCatalog = ({
       </div>
 
       {loading ? (
-        <div className={`min-h-0 flex-1 ${GRID_CLASS}`}>
-          {Array.from({ length: DEFAULT_LIMIT }, (_, i) => i).map((item) => (
-            <div key={item} className={`${CARD_CLASS} animate-pulse`}>
-              <div className={`${COVER_CLASS} bg-slate-200 dark:bg-slate-700`} />
+        <div className={`min-h-0 flex-1 ${gridClass}`} style={gridStyle}>
+          {Array.from({ length: limit }, (_, i) => i).map((item) => (
+            <div key={item} className={`${cardClass} animate-pulse`}>
+              <div className={`${coverClass} bg-slate-200 dark:bg-slate-700`} />
               <div className="h-3 w-4/5 rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="mt-1 h-2.5 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="mt-2 h-8 w-full rounded-lg bg-slate-200 dark:bg-slate-700" />
+              {!compactCards ? (
+                <div className="mt-1 h-2.5 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+              ) : null}
+              <div className={`mt-1 w-full rounded-lg bg-slate-200 dark:bg-slate-700 ${compactCards ? "h-6" : "h-8"}`} />
             </div>
           ))}
         </div>
@@ -369,28 +400,37 @@ const MemberDigitalCatalog = ({
         </div>
       ) : viewMode === "grid" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <div className={`min-h-0 flex-1 ${GRID_CLASS}`}>
+          <div className={`min-h-0 flex-1 ${gridClass}`} style={gridStyle}>
             {rows.map((book, idx) => (
               <motion.div
                 key={book.ebook_id}
                 initial={false}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.02 }}
-                className={CARD_CLASS}
+                transition={{ delay: idx * 0.01 }}
+                className={cardClass}
               >
                 <button
                   type="button"
                   onClick={() => void handleFavorite(book.ebook_id)}
-                  className="absolute right-1.5 top-1.5 z-10 rounded-full bg-white p-1 text-red-500 shadow transition hover:scale-110 dark:bg-slate-900"
+                  className={`absolute z-10 rounded-full bg-white text-red-500 shadow transition hover:scale-110 dark:bg-slate-900 ${
+                    compactCards ? "right-1 top-1 p-0.5" : "right-1.5 top-1.5 p-1"
+                  }`}
                   aria-label={favoriteIds.has(book.ebook_id) ? "Remove from favorites" : "Add to favorites"}
                   title={favoriteIds.has(book.ebook_id) ? "Remove from favorites" : "Add to favorites"}
                 >
-                  <Heart className={`h-3.5 w-3.5 ${favoriteIds.has(book.ebook_id) ? "fill-current" : ""}`} />
+                  <Heart
+                    className={`${compactCards ? "h-3 w-3" : "h-3.5 w-3.5"} ${
+                      favoriteIds.has(book.ebook_id) ? "fill-current" : ""
+                    }`}
+                  />
                 </button>
-                <div className={COVER_CLASS}>
+                <div className={coverClass}>
                   {book.cover_image ? (
                     <img
-                      src={buildCoverThumbnailUrl(book.cover_image, { width: 240, quality: 65 })}
+                      src={buildCoverThumbnailUrl(book.cover_image, {
+                        width: compactCards ? 160 : 240,
+                        quality: 65
+                      })}
                       alt={book.ebook_name}
                       className="h-full w-full object-cover"
                       loading="lazy"
@@ -400,7 +440,10 @@ const MemberDigitalCatalog = ({
                       onError={(e) => {
                         const img = e.currentTarget as HTMLImageElement;
                         const retry = Number(img.dataset.retry || "0");
-                        const source = buildCoverThumbnailUrl(book.cover_image, { width: 240, quality: 65 });
+                        const source = buildCoverThumbnailUrl(book.cover_image, {
+                          width: compactCards ? 160 : 240,
+                          quality: 65
+                        });
                         if (source && retry < COVER_RETRY_MAX) {
                           const next = retry + 1;
                           img.dataset.retry = String(next);
@@ -411,20 +454,30 @@ const MemberDigitalCatalog = ({
                       }}
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-xs font-semibold text-slate-500 dark:text-slate-300">
+                    <div className="flex h-full items-center justify-center text-[10px] font-semibold text-slate-500 dark:text-slate-300">
                       No Cover
                     </div>
                   )}
                 </div>
-                <p className="line-clamp-1 shrink-0 text-xs font-semibold text-slate-800 dark:text-slate-100 lg:text-sm">
+                <p
+                  className={`line-clamp-1 shrink-0 font-semibold text-slate-800 dark:text-slate-100 ${
+                    compactCards ? "text-[10px] leading-tight" : "text-xs lg:text-sm"
+                  }`}
+                >
                   {book.ebook_name}
                 </p>
-                <p className="mt-0.5 line-clamp-1 shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
-                  {book.author_name || "Unknown author"}
-                </p>
+                {!compactCards ? (
+                  <p className="mt-0.5 line-clamp-1 shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
+                    {book.author_name || "Unknown author"}
+                  </p>
+                ) : null}
                 <Button
                   type="button"
-                  className="mt-1.5 w-full shrink-0 justify-center rounded-lg px-2 py-1.5 text-xs"
+                  className={`w-full shrink-0 justify-center rounded-md ${
+                    compactCards
+                      ? "mt-1 px-1 py-1 text-[10px] leading-none"
+                      : "mt-1.5 rounded-lg px-2 py-1.5 text-xs"
+                  }`}
                   onClick={() => goToDetail(book.ebook_id)}
                 >
                   See Detail
@@ -437,6 +490,7 @@ const MemberDigitalCatalog = ({
             page={page}
             limit={limit}
             total={totalFiltered}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
             onPageChange={(nextPage) => updateListParams({ page: nextPage })}
             onLimitChange={(val) => updateListParams({ limit: val, page: 1 })}
           />
@@ -449,6 +503,7 @@ const MemberDigitalCatalog = ({
             page={page}
             limit={limit}
             total={totalFiltered}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
             onPageChange={(nextPage) => updateListParams({ page: nextPage })}
             onLimitChange={(val) => updateListParams({ limit: val, page: 1 })}
           />

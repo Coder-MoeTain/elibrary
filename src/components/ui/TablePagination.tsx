@@ -8,7 +8,11 @@ export type TablePaginationProps = {
   onPageChange: (page: number) => void;
   onLimitChange: (limit: number) => void;
   className?: string;
+  /** Rows-per-page choices. Defaults to admin table sizes. */
+  pageSizeOptions?: number[];
 };
+
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 function buildPageNumbers(
   totalPages: number,
@@ -57,7 +61,11 @@ const TablePagination = ({
   onPageChange,
   onLimitChange,
   className = "",
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
 }: TablePaginationProps) => {
+  const sizes = pageSizeOptions.length > 0 ? pageSizeOptions : DEFAULT_PAGE_SIZE_OPTIONS;
+  const selectValue = sizes.includes(limit) ? limit : sizes[0];
+
   const totalPages = useMemo(() => {
     if (total <= 0) return 1;
     return Math.ceil(total / limit);
@@ -88,17 +96,16 @@ const TablePagination = ({
           Rows
         </span>
         <select
-          value={limit}
+          value={selectValue}
           onChange={(e) => onLimitChange(Number(e.target.value))}
           className={selectClass}
           aria-label="Rows per page"
         >
-          <option value={12}>12</option>
-          <option value={24}>24</option>
-          <option value={36}>36</option>
-          <option value={10}>10</option>
-          <option value={25}>25</option>
-          <option value={50}>50</option>
+          {sizes.map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
         </select>
         <span className="text-slate-500 dark:text-slate-400">
           {total === 0 ? (
